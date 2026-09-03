@@ -1,7 +1,7 @@
-const CACHE = "hepi-static-v2";
+const CACHE = "hepi-static-v3";
 const ASSETS = [
   "/",
-  "/styles.css",
+  "/styles-v2.css",
   "/js/hepi-api.js",
   "/js/textsize.js",
   "/manifest.webmanifest",

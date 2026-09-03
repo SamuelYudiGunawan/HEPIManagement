@@ -25,6 +25,6 @@ function hepiApi(path, options) {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function() {
-    navigator.serviceWorker.register("/sw.js").catch(function() {});
+    navigator.serviceWorker.register("/sw-v2.js").catch(function() {});
   });
 }
