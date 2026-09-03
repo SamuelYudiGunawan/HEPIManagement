@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>History</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/textsize.js"></script>
+  <script>
+    try {
+      var _hepiText = localStorage.getItem("hepi_textSize");
+      if (_hepiText === "large" || _hepiText === "xlarge") {
+        document.documentElement.setAttribute("data-text-size", _hepiText);
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="loginModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>VERIFIKASI AKSES AGEN</h2>
+      <div class="sold-text" style="margin-bottom:10px;">Login dulu untuk lihat history</div>
+      <div class="loginFields">
+        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
+        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
+        <div class="smallHint">Kode agen & PIN disimpan di browser ini.</div>
+      </div>
+      <div class="sold-buttons">
+        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="header headerBar">
+    <div class="pageTitle">HISTORY</div>
+    <button class="headerLogout" onclick="doLogout()">Logout</button>
+  </div>
+
+  <nav class="appNav">
+    <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+    <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+    <a class="appNavLink" href="/scores" target="_top">Skor</a>
+    <a class="appNavLink active" href="/history" target="_top">History</a>
+  </nav>
+  <div class="textSizeBar" role="group" aria-label="Ukuran teks">
+    <span class="textSizeLabel">Ukuran Font</span>
+    <button type="button" class="textSizeBtn" data-text-size-btn="normal">N</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="large">L</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="xlarge">XL</button>
+  </div>
+
+  <div class="pageWrap">
+    <div id="saveBanner" class="successBanner" style="display:none;"></div>
+    <div class="filterBox">
+      <div class="filterTitle" id="historyTitle">History 2 bulan terakhir</div>
+      <div class="calLegend">
+        <span><i class="calSwatch"></i> Belum isi</span>
+        <span><i class="calSwatch calSwatchFilled"></i> Sudah isi</span>
+        <span><i class="calSwatch calSwatchClosing"></i> Ada closing</span>
+      </div>
+      <div id="calStatus"></div>
+      <div class="monthNav">
+        <button type="button" class="monthNavBtn" id="btnPrevMonth" aria-label="Bulan sebelumnya">‹</button>
+        <div class="monthNavLabel" id="monthNavLabel"></div>
+        <button type="button" class="monthNavBtn" id="btnNextMonth" aria-label="Bulan berikutnya">›</button>
+      </div>
+      <div id="monthPass"></div>
+      <div id="monthGrid"></div>
+      <div id="dayDetail" class="calDetail"></div>
+    </div>
+  </div>
+
+<script>
+  const SCRIPT_URL = "/";
+  let SAVED_OK = false;
+  let SAVED_UPDATED = false;
+  let SAVED_TANGGAL = "";
+  try {
+    const rawSaved = localStorage.getItem("hepi_just_saved");
+    if (rawSaved) {
+      localStorage.removeItem("hepi_just_saved");
+      const parsed = JSON.parse(rawSaved);
+      SAVED_OK = !!(parsed && parsed.ok);
+      SAVED_UPDATED = !!(parsed && parsed.updated);
+      SAVED_TANGGAL = (parsed && parsed.tanggal) ? String(parsed.tanggal) : "";
+    }
+  } catch (e) {}
+  let historyData = null;
+  let monthIndex = 0;
+
+  function $(id) { return document.getElementById(id); }
+  function safeStr(v) { return String(v == null ? "" : v); }
+  function escapeHtml(str) {
+    return safeStr(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getStoredAgentCode() { return localStorage.getItem("hepi_agentCode") || ""; }
+  function getStoredPin() { return localStorage.getItem("hepi_pin") || ""; }
+
+  function saveSession(agentCode, pin, status, nama) {
+    try {
+      localStorage.setItem("hepi_agentCode", safeStr(agentCode).toUpperCase().trim());
+      localStorage.setItem("hepi_pin", safeStr(pin).trim());
+      localStorage.setItem("hepi_status", safeStr(status).toLowerCase().trim());
+      localStorage.setItem("hepi_nama", safeStr(nama).trim());
+    } catch (e) {}
+  }
+
+  function isLoggedIn() {
+    return !!(getStoredAgentCode() && getStoredPin());
+  }
+
+  function openLogin() { $("loginModal").style.display = "block"; }
+  function closeLogin() { $("loginModal").style.display = "none"; }
+
+  function doLogout() {
+    try {
+      localStorage.removeItem("hepi_agentCode");
+      localStorage.removeItem("hepi_pin");
+      localStorage.removeItem("hepi_status");
+      localStorage.removeItem("hepi_nama");
+    } catch (e) {}
+    window.top.location.href = "/";
+  }
+
+  function pad2(n) {
+    return (n < 10 ? "0" : "") + n;
+  }
+
+  function passCardHtml(progress, bulan) {
+    if (!progress) return "";
+    const passed = !!progress.passed;
+    const listing = Number(progress.listing) || 0;
+    const posting = Number(progress.posting) || 0;
+    const closing = Number(progress.closing) || 0;
+    const needL = Number(progress.needListing) || 0;
+    const needP = Number(progress.needPosting) || 0;
+    const tL = Number(progress.targetListing) || 4;
+    const tP = Number(progress.targetPosting) || 300;
+    const cls = passed ? "passCard passCardOk" : "passCard passCardFail";
+    let body = "";
+    if (passed) {
+      body = '<div class="passStatus">OK</div>'
+        + '<div class="passMeta">Listing ' + listing + '/' + tL
+        + ' · Posting ' + posting + '/' + tP
+        + ' · Closing ' + closing + '</div>';
+    } else {
+      const parts = [];
+      if (needL > 0) parts.push("Listing kurang " + needL + " (sekarang " + listing + "/" + tL + ")");
+      if (needP > 0) parts.push("Posting kurang " + needP + " (sekarang " + posting + "/" + tP + ")");
+      body = '<div class="passStatus">NOT OK</div>'
+        + '<div class="passMeta"><b>Kekurangan:</b> ' + escapeHtml(parts.join(". ")) + '.</div>';
+    }
+    return '<div class="' + cls + '">' + body + '</div>';
+  }
+
+  function monthGridHtml(month, today) {
+    const days = Number(month && month.daysInMonth) || 0;
+    const filled = (month && month.filled) || {};
+    const monthKey = month && month.monthKey ? month.monthKey : "";
+    let html = '<div class="calGrid">';
+    for (let d = 1; d <= days; d++) {
+      const key = monthKey + "-" + pad2(d);
+      let cls = "calDay";
+      if (filled[key]) {
+        cls += Number(filled[key].closing) > 0 ? " calClosing" : " calFilled";
+      } else {
+        cls += " calUnfilled";
+      }
+      if (key === today) cls += " calToday";
+      html += '<button type="button" class="' + cls + '" data-date="' + escapeHtml(key) + '">' + d + '</button>';
+    }
+    const remainder = days % 7;
+    if (remainder) {
+      for (let i = remainder; i < 7; i++) {
+        html += '<div class="calDay calEmpty"></div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function submitLogin() {
+    const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
+    const pin = safeStr($("loginPin").value).trim();
+    if (!code || !pin) {
+      alert("Hayoo isi Kode Agen dan PIN Anda!");
+      return;
+    }
+
+    const btn = $("btnSubmitLogin");
+    const original = btn.innerHTML;
+    btn.innerHTML = "Memeriksa...";
+    btn.disabled = true;
+
+    hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
+      .then(function(res) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        if (res && res.valid) {
+          saveSession(code, pin, res.status, res.nama);
+          closeLogin();
+          loadHistory();
+        } else {
+          alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
+          $("loginPin").value = "";
+        }
+      })
+      .catch(function(err) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
+      });
+  }
+
+  function visibleMonth() {
+    const months = (historyData && historyData.months) || [];
+    if (!months.length) return null;
+    if (monthIndex < 0) monthIndex = 0;
+    if (monthIndex > months.length - 1) monthIndex = months.length - 1;
+    return months[monthIndex];
+  }
+
+  function showVisibleMonth() {
+    const months = (historyData && historyData.months) || [];
+    const month = visibleMonth();
+    const today = historyData && historyData.today ? historyData.today : "";
+    $("monthNavLabel").textContent = month ? (month.bulan || month.monthKey) : "";
+    $("btnPrevMonth").disabled = monthIndex <= 0;
+    $("btnNextMonth").disabled = monthIndex >= months.length - 1;
+    $("monthPass").innerHTML = month ? passCardHtml(month.progress) : "";
+    $("monthGrid").innerHTML = month ? monthGridHtml(month, today) : "";
+  }
+
+  function renderCalendar(data) {
+    historyData = data;
+    const nama = data && data.nama ? data.nama : "";
+    $("historyTitle").textContent = (nama ? nama + " — " : "") + "2 bulan terakhir";
+
+    $("calStatus").innerHTML = "";
+    const months = (data && data.months) || [];
+    const filledAll = {};
+    months.forEach(function(m) {
+      const filled = m.filled || {};
+      Object.keys(filled).forEach(function(k) { filledAll[k] = filled[k]; });
+    });
+    historyData.filled = filledAll;
+
+    monthIndex = months.length ? months.length - 1 : 0;
+    if (SAVED_TANGGAL) {
+      for (let i = 0; i < months.length; i++) {
+        if (months[i].monthKey && SAVED_TANGGAL.indexOf(months[i].monthKey) === 0) {
+          monthIndex = i;
+          break;
+        }
+      }
+    }
+
+    showVisibleMonth();
+
+    if (SAVED_TANGGAL && filledAll[SAVED_TANGGAL]) {
+      showDay(SAVED_TANGGAL);
+    } else {
+      $("dayDetail").innerHTML = '<div class="smallHint">Tap tanggal untuk lihat rincian.</div>';
+    }
+  }
+
+  function showDay(dateKey) {
+    if (!historyData) return;
+    const filled = historyData.filled || {};
+    const rec = filled[dateKey];
+    const selected = document.querySelectorAll("#monthGrid .calDay");
+    for (let i = 0; i < selected.length; i++) {
+      selected[i].classList.toggle("calSelected", selected[i].getAttribute("data-date") === dateKey);
+    }
+
+    if (!rec) {
+      $("dayDetail").innerHTML = '<div class="calDetailEmpty">Tanggal ' + escapeHtml(dateKey) + ' belum diisi.</div>';
+      return;
+    }
+
+    $("dayDetail").innerHTML =
+      '<div class="calDetailTitle">' + escapeHtml(dateKey) + '</div>'
+      + '<div class="calDetailGrid">'
+      + '<div><span>Listing</span><b>' + escapeHtml(rec.listing) + '</b></div>'
+      + '<div><span>Konten</span><b>' + escapeHtml(rec.konten) + '</b></div>'
+      + '<div><span>Posting</span><b>' + escapeHtml(rec.posting) + '</b></div>'
+      + '<div><span>Survey</span><b>' + escapeHtml(rec.survey) + '</b></div>'
+      + '<div><span>Closing</span><b>' + escapeHtml(rec.closing) + '</b></div>'
+      + '<div><span>Skor</span><b>' + escapeHtml(rec.skor) + '</b></div>'
+      + '</div>';
+  }
+
+  $("monthGrid").addEventListener("click", function(e) {
+    const btn = e.target.closest ? e.target.closest(".calDay[data-date]") : null;
+    if (!btn) return;
+    showDay(btn.getAttribute("data-date"));
+  });
+
+  $("btnPrevMonth").addEventListener("click", function() {
+    if (monthIndex <= 0) return;
+    monthIndex -= 1;
+    showVisibleMonth();
+    $("dayDetail").innerHTML = '<div class="smallHint">Tap tanggal untuk lihat rincian.</div>';
+  });
+
+  $("btnNextMonth").addEventListener("click", function() {
+    const months = (historyData && historyData.months) || [];
+    if (monthIndex >= months.length - 1) return;
+    monthIndex += 1;
+    showVisibleMonth();
+    $("dayDetail").innerHTML = '<div class="smallHint">Tap tanggal untuk lihat rincian.</div>';
+  });
+
+  function loadHistory() {
+    if (!isLoggedIn()) {
+      openLogin();
+      $("calStatus").innerHTML = '<div class="emptyState">Login dulu untuk lihat history.</div>';
+      $("monthPass").innerHTML = "";
+      $("monthGrid").innerHTML = "";
+      return;
+    }
+
+    $("calStatus").innerHTML = '<div class="emptyState">Memuat history...</div>';
+    $("monthPass").innerHTML = "";
+    $("monthGrid").innerHTML = "";
+    $("dayDetail").innerHTML = "";
+
+    hepiApi("/api/history", { body: { agentCode: getStoredAgentCode(), pin: getStoredPin() } })
+      .then(renderCalendar)
+      .catch(function(err) {
+        const msg = err && err.message ? err.message : String(err);
+        $("calStatus").innerHTML = '<div class="emptyState">' + escapeHtml(msg) + '</div>';
+        $("monthPass").innerHTML = "";
+        $("monthGrid").innerHTML = "";
+        if (/login|salah|ngawur/i.test(msg)) openLogin();
+      });
+  }
+
+  if (SAVED_OK) {
+    const tgl = SAVED_TANGGAL ? " tanggal " + SAVED_TANGGAL : "";
+    $("saveBanner").style.display = "block";
+    $("saveBanner").textContent = SAVED_UPDATED
+      ? "Aktivitas" + tgl + " berhasil di-update."
+      : "Aktivitas" + tgl + " berhasil disimpan.";
+  }
+
+  if (isLoggedIn()) loadHistory();
+  else openLogin();
+</script>
+</body>
+</html>

@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>Input Listing</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/textsize.js"></script>
+</head>
+<body>
+  <div id="loginModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>VERIFIKASI AKSES AGEN</h2>
+      <div class="sold-text" style="margin-bottom:10px;">Login admin / adminkantor untuk Input Listing</div>
+      <div class="loginFields">
+        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
+        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
+        <div class="smallHint">Kode agen & PIN disimpan di browser ini.</div>
+      </div>
+      <div class="sold-buttons">
+        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="messageModal" class="sold-modal">
+    <div class="sold-box">
+      <div id="messageText" class="sold-text"></div>
+      <button onclick="closeMessage()">OK</button>
+    </div>
+  </div>
+
+  <div class="header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 18px;">
+    <div style="flex: 1; text-align: center; font-size: 42px; font-weight: 900;">
+      INPUT LISTING
+    </div>
+    <button onclick="doLogout()" style="width: auto; padding: 8px 16px; font-size: 24px; background: #d32f2f; margin-left: 16px; border-radius: 12px; min-height: auto;">
+      Logout
+    </button>
+  </div>
+
+  <nav class="appNav">
+    <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+    <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+    <a class="appNavLink" href="/scores" target="_top">Skor</a>
+    <a class="appNavLink" href="/history" target="_top">History</a>
+  </nav>
+
+  <div class="pageWrap">
+    <div id="deniedBox" class="filterBox" style="display:none;">
+      <div class="emptyState">Hanya admin atau adminkantor yang bisa akses halaman Input Listing.</div>
+    </div>
+
+    <div id="formBox" class="filterBox" style="display:none;">
+      <div class="filterTitle">Input Listing</div>
+      <div id="listingRows"></div>
+      <div class="closingActions">
+        <button type="button" id="btnAddListing" class="btnSecondary" onclick="addListingCard()">+ Add more listing</button>
+        <button type="button" id="btnSaveListing" onclick="submitListings()">SIMPAN</button>
+      </div>
+      <div id="submitStatus" class="smallHint"></div>
+    </div>
+  </div>
+
+<script>
+  const SCRIPT_URL = "/";
+  const TIPE_CODE = {
+    Gudang: "G", Tanah: "T", Rumah: "R", Ruko: "U", Kost: "K", Apartemen: "A"
+  };
+  const TIPE_LIST = ["Gudang", "Tanah", "Rumah", "Ruko", "Kost", "Apartemen"];
+  const HADAP_LIST = ["Utara", "Selatan", "Timur", "Barat", "Tenggara", "Timur Laut", "Barat Laut", "Barat Daya"];
+  const THUMB_W = 800;
+  const THUMB_H = 1000;
+  const ORIG_MAX = 1920;
+  let AGENT_LIST = [];
+
+  function $(id) { return document.getElementById(id); }
+  function safeStr(v) { return String(v == null ? "" : v); }
+
+  function escapeHtml(str) {
+    return safeStr(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getStoredAgentCode() { return localStorage.getItem("hepi_agentCode") || ""; }
+  function getStoredPin() { return localStorage.getItem("hepi_pin") || ""; }
+  function getStoredStatus() { return (localStorage.getItem("hepi_status") || "").toLowerCase().trim(); }
+
+  function saveSession(agentCode, pin, status, nama) {
+    try {
+      localStorage.setItem("hepi_agentCode", safeStr(agentCode).toUpperCase().trim());
+      localStorage.setItem("hepi_pin", safeStr(pin).trim());
+      localStorage.setItem("hepi_status", safeStr(status).toLowerCase().trim());
+      localStorage.setItem("hepi_nama", safeStr(nama).trim());
+    } catch (e) {}
+  }
+
+  function isLoggedIn() {
+    return !!(getStoredAgentCode() && getStoredPin());
+  }
+
+  function canEditListing() {
+    const s = getStoredStatus();
+    return s === "admin" || s === "adminkantor";
+  }
+
+  function openLogin() { $("loginModal").style.display = "block"; }
+  function closeLogin() { $("loginModal").style.display = "none"; }
+
+  function showMessage(msg) {
+    $("messageText").textContent = msg;
+    $("messageModal").style.display = "block";
+  }
+
+  function closeMessage() { $("messageModal").style.display = "none"; }
+
+  function doLogout() {
+    try {
+      localStorage.removeItem("hepi_agentCode");
+      localStorage.removeItem("hepi_pin");
+      localStorage.removeItem("hepi_status");
+      localStorage.removeItem("hepi_nama");
+    } catch (e) {}
+    window.top.location.href = "/";
+  }
+
+  function optionHtml(list, selected, placeholder) {
+    let html = '<option value="">' + escapeHtml(placeholder) + "</option>";
+    list.forEach(function(item) {
+      const val = typeof item === "string" ? item : item.value;
+      const label = typeof item === "string" ? item : item.label;
+      html += '<option value="' + escapeHtml(val) + '"'
+        + (val === selected ? " selected" : "")
+        + ">" + escapeHtml(label) + "</option>";
+    });
+    return html;
+  }
+
+  function agentOptionsHtml(selected) {
+    const sel = safeStr(selected);
+    let html = '<option value="">Pilih agen</option>';
+    AGENT_LIST.forEach(function(a) {
+      const kode = safeStr(a.kode);
+      const nama = safeStr(a.nama || a.kode);
+      html += '<option value="' + escapeHtml(kode) + '"'
+        + (kode === sel ? " selected" : "")
+        + ">" + escapeHtml(nama) + " (" + escapeHtml(kode) + ")</option>";
+    });
+    return html;
+  }
+
+  function findAgent(kode) {
+    const key = safeStr(kode).toUpperCase();
+    for (let i = 0; i < AGENT_LIST.length; i++) {
+      if (safeStr(AGENT_LIST[i].kode).toUpperCase() === key) return AGENT_LIST[i];
+    }
+    return null;
+  }
+
+  function formatPhoneDisplay(hp) {
+    const d = safeStr(hp).replace(/\D/g, "");
+    if (!d) return "";
+    if (d.length < 8) return d;
+    return d.replace(/(\d{4})(\d{4})(\d+)/, "$1-$2-$3");
+  }
+
+  function sanitizeName(name) {
+    return safeStr(name)
+      .replace(/[\/\\:*?"<>|]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  // Folder/title only: "70 juta/tahun" → "70JT". Narasi tetap teks asli.
+  function hargaForTitle(harga) {
+    let s = safeStr(harga).replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    s = s.replace(/^rp\.?\s*/i, "");
+    s = s.replace(
+      /(\d+(?:[.,]\d+)?)\s*(?:juta|jt)\b(?:\s*(?:\/|\bper\b)?\s*(?:tahun|thn|th|year))?/gi,
+      "$1JT"
+    );
+    s = s.replace(
+      /(\d+(?:[.,]\d+)?)\s*(?:miliar|milyar)\b/gi,
+      "$1M"
+    );
+    s = s.replace(/\s*(?:\/|\bper\b)\s*(?:tahun|thn|th|year)\b/gi, "");
+    s = s.replace(/\b(?:tahun|thn)\b/gi, "");
+    s = s.replace(/\s*(?:\/|\bper\b)?\s*(?:bulan|bln|month)\b/gi, "BLN");
+    s = s.replace(/\s+(JT|M|BLN)\b/gi, "$1");
+    s = s.replace(/\b(JT|M)BLN\b/gi, "$1BLN");
+    return s.replace(/\s+/g, " ").trim();
+  }
+
+  function val(card, sel) {
+    const el = card.querySelector(sel);
+    return el ? safeStr(el.value).trim() : "";
+  }
+
+  function checked(card, sel) {
+    const el = card.querySelector(sel);
+    return !!(el && el.checked);
+  }
+
+  function listingCode(card) {
+    const kategori = val(card, ".kategoriSelect");
+    const tipe = val(card, ".tipeSelect");
+    const letter = TIPE_CODE[tipe];
+    if (!kategori || !letter) return "";
+    return (kategori === "Sewa" ? "S" : "J") + letter;
+  }
+
+  function folderNamePreview(card) {
+    const code = listingCode(card);
+    const daerah = sanitizeName(val(card, ".daerahInput"));
+    const harga = sanitizeName(hargaForTitle(val(card, ".hargaInput")));
+    const kode = val(card, ".agentSelect");
+    if (!code || !daerah || !harga || !kode) return "";
+    return code + " " + daerah + " " + harga + " " + kode;
+  }
+
+  function parkLine(label, value) {
+    const v = safeStr(value).trim();
+    if (!v) return "";
+    if (new RegExp("^" + label + "\\b", "i").test(v)) return v;
+    if (/mobil/i.test(v)) return label + " " + v;
+    return label + " " + v + " mobil";
+  }
+
+  function buildNarrative(card) {
+    const tipe = val(card, ".tipeSelect") || "…";
+    const daerah = val(card, ".daerahInput").replace(/\s+/g, " ") || "…";
+    const harga = val(card, ".hargaInput").replace(/\s+/g, " ");
+    const kode = val(card, ".agentSelect");
+    const agent = findAgent(kode) || { kode: kode, nama: kode, hp: "" };
+
+    const verb = val(card, ".kategoriSelect") === "Sewa" ? "Disewakan" : "Dijual";
+    const lines = [];
+    lines.push(verb + " " + tipe + " di " + daerah);
+    lines.push("");
+
+    const lt = val(card, ".ltInput");
+    const lb = val(card, ".lbInput");
+    const kt = val(card, ".ktInput");
+    const km = val(card, ".kmInput");
+    const listrik = val(card, ".listrikInput");
+    const air = val(card, ".airInput");
+    const sertifikat = val(card, ".sertifikatInput");
+    const hadap = val(card, ".hadapSelect");
+    const furnished = val(card, ".furnishedSelect");
+    const garasi = val(card, ".garasiInput");
+    const carport = val(card, ".carportInput");
+    const narasi = val(card, ".narasiInput");
+
+    if (lt) lines.push("Luas Tanah " + lt + " m²");
+    if (lb) lines.push("Luas Bangunan " + lb + " m²");
+    if (kt) lines.push("Kamar Tidur " + kt);
+    if (km) lines.push("Kamar Mandi " + km);
+    if (listrik) lines.push(/watt/i.test(listrik) ? "Listrik " + listrik : "Listrik " + listrik + " Watt");
+    if (air) lines.push(/^air\b/i.test(air) ? air : "Air " + air);
+    if (sertifikat) lines.push(/^sertifikat\b/i.test(sertifikat) ? sertifikat : "Sertifikat " + sertifikat);
+    if (hadap) lines.push("Hadap " + hadap);
+    if (furnished === "Ya") lines.push("Furnished");
+    else if (furnished === "Semi") lines.push("Semi Furnished");
+    const gLine = parkLine("Garasi", garasi);
+    const cLine = parkLine("Carport", carport);
+    if (gLine) lines.push(gLine);
+    if (cLine) lines.push(cLine);
+    if (checked(card, ".fullBangunanCheck")) lines.push("Full Bangunan");
+
+    if (narasi) {
+      lines.push("");
+      lines.push(narasi);
+    }
+
+    lines.push("");
+    if (harga) {
+      lines.push("Harga " + harga + (checked(card, ".negoCheck") ? " nego" : ""));
+    } else {
+      lines.push("Harga ");
+    }
+    lines.push("");
+    lines.push(canonicalAgentFooter(agent).trim());
+    return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function canonicalAgentFooter(agent) {
+    agent = agent || {};
+    const lines = [];
+    lines.push("Hubungi : ");
+    lines.push(agent.nama || agent.kode || "");
+    const hp = formatPhoneDisplay(agent.hp);
+    if (hp) lines.push(hp);
+    lines.push("");
+    lines.push("#HepiProperty #HepiPropertySemarang #JualanPropertyItuAsyik #SingPentingHepi #" + safeStr(agent.kode).toUpperCase());
+    return lines.join("\n");
+  }
+
+  function listingHashtags(agent) {
+    return "#HepiProperty #HepiPropertySemarang #JualanPropertyItuAsyik #SingPentingHepi #" + safeStr(agent && agent.kode).toUpperCase();
+  }
+
+  function hasAgentContact(text) {
+    const s = safeStr(text);
+    if (!s) return false;
+    if (/\bhubungi\b|\bhub\b|\bcontact\b|whats?app|\bwa\b|hp\s*[&+]?\s*wa|more\s*info/i.test(s)) return true;
+    const matches = s.match(/(?:\+?62|0)\d[\d\-\s().]{6,}\d/g);
+    if (!matches) return false;
+    for (let i = 0; i < matches.length; i++) {
+      const d = matches[i].replace(/\D/g, "");
+      if (d.length >= 9 && d.length <= 15) return true;
+    }
+    return false;
+  }
+
+  function endsWithHashtags(text) {
+    let lines = safeStr(text).replace(/\r\n/g, "\n").trim().split("\n");
+    while (lines.length && !safeStr(lines[lines.length - 1]).trim()) lines.pop();
+    const last = lines.length ? safeStr(lines[lines.length - 1]).trim() : "";
+    return /^(#[^\s#]+\s*)+$/.test(last);
+  }
+
+  function completeOwnNarrative(text, agent) {
+    const raw = safeStr(text).replace(/\r\n/g, "\n").trim();
+    if (!raw) return "";
+
+    if (hasAgentContact(raw)) {
+      if (endsWithHashtags(raw)) return raw;
+      const kode = agent && agent.kode;
+      if (!kode) return raw;
+      return (raw + "\n\n" + listingHashtags(agent)).replace(/\n{3,}/g, "\n\n").trim();
+    }
+
+    if (!agent || !(agent.nama || agent.kode || agent.hp)) return raw;
+    return (raw + "\n\n" + canonicalAgentFooter(agent).trim()).replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function isOwnNarrative(card) {
+    const el = card.querySelector(".narasiOwn");
+    return !!(el && el.checked);
+  }
+
+  function syncNarasiMode(card) {
+    const own = isOwnNarrative(card);
+    const autoBox = card.querySelector(".autoNarasiBox");
+    const ownBox = card.querySelector(".ownNarasiBox");
+    const specBox = card.querySelector(".specFieldsBox");
+    if (autoBox) autoBox.style.display = own ? "none" : "";
+    if (ownBox) ownBox.style.display = own ? "" : "none";
+    if (specBox) specBox.style.display = own ? "none" : "";
+  }
+
+  function refreshCard(card, evt) {
+    const hargaInput = card.querySelector(".hargaInput");
+    if (hargaInput) {
+      hargaInput.placeholder = val(card, ".kategoriSelect") === "Sewa"
+        ? "70 juta/tahun"
+        : "5,8M";
+    }
+    const folderEl = card.querySelector(".folderPreview");
+    const autoPreview = card.querySelector(".autoNarasiPreview");
+    const folderName = folderNamePreview(card);
+    if (folderEl) {
+      folderEl.textContent = folderName;
+      folderEl.style.display = folderName ? "block" : "none";
+    }
+    syncNarasiMode(card);
+    const target = evt && evt.target;
+    const cls = target && target.classList;
+    const fromAutoPreview = cls && cls.contains("autoNarasiPreview");
+    const fromOwnPreview = cls && cls.contains("ownNarasiPreview");
+    if (autoPreview && !isOwnNarrative(card) && !fromAutoPreview) {
+      autoPreview.value = buildNarrative(card);
+    }
+    const regenOwn = !target || (cls && (
+      cls.contains("ownNarasiInput") ||
+      cls.contains("agentSelect") ||
+      cls.contains("narasiOwn")
+    ));
+    if (isOwnNarrative(card) && !fromOwnPreview && regenOwn) {
+      const preview = card.querySelector(".ownNarasiPreview");
+      if (preview) {
+        const kode = val(card, ".agentSelect");
+        preview.value = completeOwnNarrative(val(card, ".ownNarasiInput"), findAgent(kode));
+      }
+    }
+  }
+
+  function refreshAllCards() {
+    document.querySelectorAll("#listingRows .listingCard").forEach(refreshCard);
+  }
+
+  function refreshRemoveButtons() {
+    const cards = document.querySelectorAll("#listingRows .listingCard");
+    cards.forEach(function(card, i) {
+      const title = card.querySelector(".listingCardTitle");
+      if (title) title.textContent = "Listing " + (i + 1);
+      const btn = card.querySelector(".btnRemove");
+      if (btn) btn.style.display = cards.length > 1 ? "block" : "none";
+    });
+  }
+
+  function fillAgentSelects() {
+    document.querySelectorAll("#listingRows .agentSelect").forEach(function(sel) {
+      const current = sel.value;
+      sel.innerHTML = agentOptionsHtml(current);
+    });
+    refreshAllCards();
+  }
+
+  function loadViaImg(file) {
+    return new Promise(function(resolve, reject) {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = function() {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = function() {
+        URL.revokeObjectURL(url);
+        reject(new Error("Gagal membaca foto."));
+      };
+      img.src = url;
+    });
+  }
+
+  function loadImageForCrop(file) {
+    if (typeof createImageBitmap === "function") {
+      return createImageBitmap(file, { imageOrientation: "from-image" }).catch(function() {
+        return loadViaImg(file);
+      });
+    }
+    return loadViaImg(file);
+  }
+
+  function cropToRatioDataUrl(source, outW, outH, mime, quality) {
+    const w = source.width;
+    const h = source.height;
+    if (!w || !h) throw new Error("Foto tidak valid.");
+    const targetRatio = outW / outH;
+    const srcRatio = w / h;
+    let sx, sy, sw, sh;
+    if (srcRatio > targetRatio) {
+      sh = h;
+      sw = h * targetRatio;
+      sx = (w - sw) / 2;
+      sy = 0;
+    } else {
+      sw = w;
+      sh = w / targetRatio;
+      sx = 0;
+      sy = (h - sh) / 2;
+    }
+    let width = outW;
+    let height = outH;
+    if (width > sw) {
+      width = Math.max(1, Math.round(sw));
+      height = Math.max(1, Math.round(width / targetRatio));
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, width, height);
+    return canvas.toDataURL(mime, quality);
+  }
+
+  function keepOriginalDataUrl(source, mime, quality) {
+    const w = source.width;
+    const h = source.height;
+    if (!w || !h) throw new Error("Foto tidak valid.");
+    const scale = Math.min(1, ORIG_MAX / Math.max(w, h));
+    const width = Math.max(1, Math.round(w * scale));
+    const height = Math.max(1, Math.round(h * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(source, 0, 0, width, height);
+    return canvas.toDataURL(mime, quality);
+  }
+
+  function firstImageFile_(fileList) {
+    if (!fileList || !fileList.length) return null;
+    for (let i = 0; i < fileList.length; i++) {
+      if (/^image\//i.test(fileList[i].type || "")) return fileList[i];
+    }
+    return fileList[0] || null;
+  }
+
+  function applyPhotoFile_(card, input, previewWrap, kind, file) {
+    if (!file) return;
+    if (!/^image\//i.test(file.type || "")) {
+      alert("Pilih file gambar.");
+      input.value = "";
+      return;
+    }
+    previewWrap.textContent = "Memproses...";
+    previewWrap.classList.remove("hasImg");
+    const imgEl = previewWrap.querySelector("img");
+    if (imgEl) imgEl.remove();
+
+    loadImageForCrop(file)
+      .then(function(source) {
+        const dataUrl = kind === "thumb"
+          ? cropToRatioDataUrl(source, THUMB_W, THUMB_H, "image/jpeg", 0.85)
+          : keepOriginalDataUrl(source, "image/jpeg", 0.85);
+        if (kind === "thumb") {
+          card._thumbDataUrl = dataUrl;
+          card._thumbMime = "image/jpeg";
+        } else {
+          card._origDataUrl = dataUrl;
+          card._origMime = "image/jpeg";
+          card._origExt = "jpg";
+        }
+        previewWrap.innerHTML = "";
+        const img = document.createElement("img");
+        img.alt = kind === "thumb" ? "Thumbnail" : "Original";
+        img.src = dataUrl;
+        previewWrap.appendChild(img);
+        previewWrap.classList.add("hasImg");
+      })
+      .catch(function(err) {
+        alert(err && err.message ? err.message : "Gagal memproses foto.");
+        input.value = "";
+        previewWrap.textContent = "Klik atau drop foto";
+        previewWrap.classList.remove("hasImg");
+      });
+  }
+
+  function bindPhotoInput(card, input, previewWrap, kind) {
+    const dropZone = input.closest(".photoDrop") || previewWrap;
+    let lastDropAt = 0;
+
+    input.addEventListener("change", function() {
+      applyPhotoFile_(card, input, previewWrap, kind, input.files && input.files[0]);
+    });
+
+    dropZone.addEventListener("click", function(e) {
+      if (e.target === input) return;
+      if (Date.now() - lastDropAt < 500) return;
+      input.click();
+    });
+
+    ["dragenter", "dragover"].forEach(function(ev) {
+      dropZone.addEventListener(ev, function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        dropZone.classList.add("isDragOver");
+      });
+    });
+
+    dropZone.addEventListener("dragleave", function(e) {
+      e.preventDefault();
+      if (!dropZone.contains(e.relatedTarget)) {
+        dropZone.classList.remove("isDragOver");
+      }
+    });
+
+    dropZone.addEventListener("drop", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      lastDropAt = Date.now();
+      dropZone.classList.remove("isDragOver");
+      const file = firstImageFile_(e.dataTransfer && e.dataTransfer.files);
+      if (!file) {
+        alert("Drop file gambar.");
+        return;
+      }
+      applyPhotoFile_(card, input, previewWrap, kind, file);
+    });
+  }
+
+  function guardPageFileDrop_() {
+    if (window._hepiPhotoDropGuard) return;
+    window._hepiPhotoDropGuard = true;
+    ["dragover", "drop"].forEach(function(ev) {
+      document.addEventListener(ev, function(e) {
+        const types = e.dataTransfer && e.dataTransfer.types;
+        if (!types) return;
+        const hasFiles = typeof types.contains === "function"
+          ? types.contains("Files")
+          : Array.prototype.indexOf.call(types, "Files") >= 0;
+        if (hasFiles) e.preventDefault();
+      });
+    });
+  }
+
+  function addListingCard() {
+    guardPageFileDrop_();
+    const wrap = $("listingRows");
+    const card = document.createElement("div");
+    card.className = "listingCard";
+    card.innerHTML =
+      '<div class="listingCardHead">'
+      + '<div class="listingCardTitle">Listing</div>'
+      + '<button type="button" class="btnDanger btnRemove">Hapus</button>'
+      + "</div>"
+      + '<div class="filterRow">'
+      + '<div class="specGroup"><div class="specLabel">Jual / Sewa</div>'
+      + '<select class="kategoriSelect">' + optionHtml(["Jual", "Sewa"], "", "Pilih") + "</select></div>"
+      + '<div class="specGroup"><div class="specLabel">Tipe</div>'
+      + '<select class="tipeSelect">' + optionHtml(TIPE_LIST, "", "Pilih tipe") + "</select></div>"
+      + '<div class="specGroup"><div class="specLabel">Nama Daerah</div>'
+      + '<input class="daerahInput" type="text" placeholder="Hanoman Semarang"></div>'
+      + '<div class="specGroup"><div class="specLabel">Harga</div>'
+      + '<input class="hargaInput" type="text" placeholder="5,8M"></div>'
+      + "</div>"
+      + '<div class="checkRowPair">'
+      + '<label class="checkRow"><input class="negoCheck" type="checkbox"> Nego</label>'
+      + '<label class="checkRow"><input class="narasiOwn" type="checkbox"> Narasi sendiri</label>'
+      + "</div>"
+      + '<div class="specGroup"><div class="specLabel">Agen</div>'
+      + '<select class="agentSelect">' + agentOptionsHtml("") + "</select></div>"
+      + '<div class="folderPreview"></div>'
+      + '<div class="specFieldsBox">'
+      + '<div class="filterRow">'
+      + '<div class="specGroup"><div class="specLabel">Luas Tanah (m²)</div><input class="ltInput" type="number" min="0" step="any" placeholder="Opsional"></div>'
+      + '<div class="specGroup"><div class="specLabel">Luas Bangunan (m²)</div><input class="lbInput" type="number" min="0" step="any" placeholder="Opsional"></div>'
+      + '<div class="specGroup"><div class="specLabel">Kamar Tidur</div><input class="ktInput" type="text" inputmode="text" placeholder="3 atau 3+1"></div>'
+      + '<div class="specGroup"><div class="specLabel">Kamar Mandi</div><input class="kmInput" type="text" inputmode="text" placeholder="2 atau 2+1"></div>'
+      + '<div class="specGroup"><div class="specLabel">Listrik</div><input class="listrikInput" type="text" placeholder="3300"></div>'
+      + '<div class="specGroup"><div class="specLabel">Air</div><input class="airInput" type="text" placeholder="Artetis / PDAM"></div>'
+      + '<div class="specGroup"><div class="specLabel">Sertifikat</div><input class="sertifikatInput" type="text" placeholder="HM / SHM / HGB"></div>'
+      + '<div class="specGroup"><div class="specLabel">Hadap</div>'
+      + '<select class="hadapSelect">' + optionHtml(HADAP_LIST, "", "Opsional") + "</select></div>"
+      + '<div class="specGroup"><div class="specLabel">Furnished</div>'
+      + '<select class="furnishedSelect">' + optionHtml(["Ya", "Semi", "Tidak"], "", "Opsional") + "</select></div>"
+      + '<div class="specGroup"><div class="specLabel">Garasi</div><input class="garasiInput" type="text" inputmode="text" placeholder="2"></div>'
+      + '<div class="specGroup"><div class="specLabel">Carport</div><input class="carportInput" type="text" inputmode="text" placeholder="1"></div>'
+      + "</div>"
+      + '<label class="checkRow"><input class="fullBangunanCheck" type="checkbox"> Full Bangunan</label>'
+      + "</div>"
+      + '<div class="autoNarasiBox">'
+      + '<div class="specGroup"><div class="specLabel">Narasi tambahan</div>'
+      + '<textarea class="narasiInput" placeholder="Free text yang tidak mengikuti template"></textarea></div>'
+      + '<div class="specGroup"><div class="specLabel">Hasil lengkap (bisa diedit)</div>'
+      + '<textarea class="autoNarasiPreview narrativePreview" placeholder="Narasi otomatis akan muncul di sini, bisa diedit sebelum simpan."></textarea></div>'
+      + "</div>"
+      + '<div class="ownNarasiBox" style="display:none;">'
+      + '<div class="specGroup"><div class="specLabel">Tempel narasi sendiri</div>'
+      + '<textarea class="ownNarasiInput" placeholder="Paste narasi yang sudah ada di sini"></textarea></div>'
+      + '<div class="specGroup"><div class="specLabel">Hasil lengkap (bisa diedit)</div>'
+      + '<textarea class="ownNarasiPreview narrativePreview" placeholder="Kalau narasi sudah ada kontak agen, dibiarkan. Kalau belum, Hubungi + hashtag ditambah. Bisa diedit."></textarea></div>'
+      + "</div>"
+      + '<div class="photoGrid">'
+      + '<div class="photoBox photoDrop">'
+      + '<div class="specLabel">Thumbnail (4:5)</div>'
+      + '<input class="thumbInput photoFileInput" type="file" accept="image/*">'
+      + '<div class="squarePreview thumbPreviewBox">Klik atau drop foto</div>'
+      + "</div>"
+      + '<div class="photoBox photoDrop">'
+      + '<div class="specLabel">Original (asli)</div>'
+      + '<input class="origInput photoFileInput" type="file" accept="image/*">'
+      + '<div class="origPreview origPreviewBox">Klik atau drop foto</div>'
+      + "</div>"
+      + "</div>";
+
+    card.querySelector(".btnRemove").addEventListener("click", function() {
+      const all = document.querySelectorAll("#listingRows .listingCard");
+      if (all.length <= 1) return;
+      card.remove();
+      refreshRemoveButtons();
+    });
+
+    card.addEventListener("input", function(e) { refreshCard(card, e); });
+    card.addEventListener("change", function(e) { refreshCard(card, e); });
+
+    bindPhotoInput(card, card.querySelector(".thumbInput"), card.querySelector(".thumbPreviewBox"), "thumb");
+    bindPhotoInput(card, card.querySelector(".origInput"), card.querySelector(".origPreviewBox"), "orig");
+
+    wrap.appendChild(card);
+    refreshCard(card);
+    refreshRemoveButtons();
+  }
+
+  function ensureFirstCard() {
+    if (!document.querySelector("#listingRows .listingCard")) addListingCard();
+  }
+
+  function resetListingCards() {
+    $("listingRows").innerHTML = "";
+    addListingCard();
+  }
+
+  function showDenied() {
+    $("deniedBox").style.display = "block";
+    $("formBox").style.display = "none";
+  }
+
+  function showForm() {
+    $("deniedBox").style.display = "none";
+    $("formBox").style.display = "block";
+  }
+
+  function applyAgentList(list) {
+    AGENT_LIST = Array.isArray(list) ? list : [];
+    fillAgentSelects();
+    ensureFirstCard();
+    $("submitStatus").className = "smallHint";
+    if (!AGENT_LIST.length) {
+      $("submitStatus").className = "formHint";
+      $("submitStatus").textContent = "Belum ada agen aktif di Data Agen.";
+    } else {
+      $("submitStatus").textContent = "";
+    }
+  }
+
+  function loadAgentsThenForm() {
+    showForm();
+    $("submitStatus").className = "smallHint";
+    $("submitStatus").textContent = "Memuat daftar agen...";
+
+    function onFail(err) {
+      const msg = err && err.message ? err.message : String(err);
+      $("submitStatus").textContent = msg;
+      $("btnSaveListing").disabled = false;
+      $("btnAddListing").disabled = false;
+      ensureFirstCard();
+      if (/admin|akses|adminkantor/i.test(msg)) showDenied();
+      if (/login|salah|ngawur/i.test(msg)) openLogin();
+    }
+
+    hepiApi("/api/agents", { body: { for: "listing", agentCode: getStoredAgentCode(), pin: getStoredPin() } })
+      .then(applyAgentList)
+      .catch(function() {
+        return hepiApi("/api/agents", { body: { for: "closing", agentCode: getStoredAgentCode(), pin: getStoredPin() } })
+          .then(applyAgentList);
+      })
+      .catch(onFail);
+  }
+
+  function applyAccess() {
+    if (!isLoggedIn()) {
+      $("deniedBox").style.display = "none";
+      $("formBox").style.display = "none";
+      openLogin();
+      return;
+    }
+    if (!canEditListing()) {
+      showDenied();
+      return;
+    }
+    loadAgentsThenForm();
+  }
+
+  function submitLogin() {
+    const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
+    const pin = safeStr($("loginPin").value).trim();
+    if (!code || !pin) {
+      alert("Hayoo isi Kode Agen dan PIN Anda!");
+      return;
+    }
+
+    const btn = $("btnSubmitLogin");
+    const original = btn.innerHTML;
+    btn.innerHTML = "Memeriksa...";
+    btn.disabled = true;
+
+    hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
+      .then(function(res) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        if (res && res.valid) {
+          saveSession(code, pin, res.status, res.nama);
+          closeLogin();
+          applyAccess();
+        } else {
+          alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
+          $("loginPin").value = "";
+        }
+      })
+      .catch(function(err) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
+      });
+  }
+
+  function collectPayload(card, index) {
+    const kategori = val(card, ".kategoriSelect");
+    const tipe = val(card, ".tipeSelect");
+    const daerah = val(card, ".daerahInput");
+    const harga = val(card, ".hargaInput");
+    const kode = val(card, ".agentSelect");
+    const n = index + 1;
+
+    if (!kategori) throw new Error("Listing " + n + ": pilih Jual / Sewa.");
+    if (!tipe) throw new Error("Listing " + n + ": pilih tipe properti.");
+    if (!daerah) throw new Error("Listing " + n + ": isi nama daerah.");
+    if (!harga) throw new Error("Listing " + n + ": isi harga.");
+    if (!kode) throw new Error("Listing " + n + ": pilih agen.");
+    if (!card._thumbDataUrl) throw new Error("Listing " + n + ": upload thumbnail.");
+    if (!card._origDataUrl) throw new Error("Listing " + n + ": upload foto original.");
+
+    const useOwn = isOwnNarrative(card);
+    if (useOwn && !val(card, ".ownNarasiInput")) {
+      throw new Error("Listing " + n + ": tempel narasi sendiri dulu.");
+    }
+    let ownNarrative = val(card, ".ownNarasiPreview");
+    if (useOwn && !ownNarrative) {
+      ownNarrative = completeOwnNarrative(val(card, ".ownNarasiInput"), findAgent(kode));
+    }
+    const autoNarrative = val(card, ".autoNarasiPreview");
+
+    return {
+      kategori: kategori,
+      tipe: tipe,
+      daerah: daerah,
+      harga: harga,
+      nego: checked(card, ".negoCheck"),
+      kodeAgen: kode,
+      luasTanah: val(card, ".ltInput"),
+      luasBangunan: val(card, ".lbInput"),
+      kamarTidur: val(card, ".ktInput"),
+      kamarMandi: val(card, ".kmInput"),
+      listrik: val(card, ".listrikInput"),
+      air: val(card, ".airInput"),
+      sertifikat: val(card, ".sertifikatInput"),
+      hadap: val(card, ".hadapSelect"),
+      furnished: val(card, ".furnishedSelect"),
+      garasi: val(card, ".garasiInput"),
+      carport: val(card, ".carportInput"),
+      fullBangunan: checked(card, ".fullBangunanCheck"),
+      narasi: val(card, ".narasiInput"),
+      useOwnNarrative: useOwn,
+      ownNarrative: ownNarrative,
+      autoNarrative: autoNarrative,
+      thumbBase64: card._thumbDataUrl,
+      thumbMime: card._thumbMime || "image/jpeg",
+      origBase64: card._origDataUrl,
+      origMime: card._origMime || "image/jpeg",
+      origExt: card._origExt || "jpg"
+    };
+  }
+
+  function dataUrlToBlob(dataUrl, mime) {
+    var s = String(dataUrl || "");
+    var m = s.match(/^data:([^;]+);base64,(.+)$/);
+    var b64 = m ? m[2] : s.replace(/^data:[^;]+;base64,/, "");
+    var type = m ? m[1] : (mime || "image/jpeg");
+    var bin = atob(b64);
+    var arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: type });
+  }
+
+  function runSubmit(payload) {
+    var fd = new FormData();
+    fd.append("agentCode", getStoredAgentCode());
+    fd.append("pin", getStoredPin());
+    Object.keys(payload).forEach(function(k) {
+      if (k === "thumbBase64" || k === "origBase64") return;
+      var v = payload[k];
+      if (v === true || v === false) fd.append(k, v ? "true" : "false");
+      else if (v != null) fd.append(k, String(v));
+    });
+    if (payload.thumbBase64) fd.append("thumb", dataUrlToBlob(payload.thumbBase64, payload.thumbMime), "thumb.png");
+    if (payload.origBase64) fd.append("orig", dataUrlToBlob(payload.origBase64, payload.origMime), "orig." + (payload.origExt || "jpg"));
+    return hepiApi("/api/input-listing", { formData: fd });
+  }
+
+  function submitListings() {
+    if (!isLoggedIn()) {
+      openLogin();
+      return;
+    }
+    if (!canEditListing()) {
+      showDenied();
+      return;
+    }
+
+    const cards = Array.prototype.slice.call(document.querySelectorAll("#listingRows .listingCard"));
+    let payloads;
+    try {
+      payloads = cards.map(collectPayload);
+    } catch (err) {
+      alert(err && err.message ? err.message : String(err));
+      return;
+    }
+
+    const btn = $("btnSaveListing");
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    $("btnAddListing").disabled = true;
+    $("submitStatus").className = "smallHint";
+    $("submitStatus").textContent = "";
+
+    const saved = [];
+    let i = 0;
+
+    function next() {
+      if (i >= payloads.length) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        $("btnAddListing").disabled = false;
+        const names = saved.map(function(s) { return s.folderName; }).join(", ");
+        $("submitStatus").className = "successBanner";
+        $("submitStatus").textContent = "Listing tersimpan: " + names;
+        resetListingCards();
+        showMessage("Listing berhasil disimpan ke Drive.");
+        return;
+      }
+      btn.innerHTML = "Menyimpan " + (i + 1) + "/" + payloads.length + "...";
+      $("submitStatus").textContent = "Menyimpan listing " + (i + 1) + " dari " + payloads.length + "...";
+      runSubmit(payloads[i])
+        .then(function(res) {
+          if (!res || !res.ok) throw new Error("Gagal menyimpan listing " + (i + 1) + ".");
+          saved.push(res);
+          i += 1;
+          next();
+        })
+        .catch(function(err) {
+          btn.innerHTML = original;
+          btn.disabled = false;
+          $("btnAddListing").disabled = false;
+          const msg = err && err.message ? err.message : String(err);
+          $("submitStatus").className = "smallHint";
+          const prefix = saved.length
+            ? "Sebagian tersimpan (" + saved.map(function(s) { return s.folderName; }).join(", ") + "). "
+            : "";
+          $("submitStatus").textContent = prefix + "Listing " + (i + 1) + " gagal: " + msg;
+          if (/admin|akses|adminkantor/i.test(msg)) showDenied();
+          if (/login|salah|ngawur/i.test(msg)) openLogin();
+        });
+    }
+
+    next();
+  }
+
+  applyAccess();
+</script>
+</body>
+</html>

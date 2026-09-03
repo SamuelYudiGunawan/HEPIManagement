@@ -1,0 +1,2605 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>HEPI PROPERTY LISTINGS 🏠</title>
+  <script>
+    try {
+      var _hepiText = localStorage.getItem("hepi_textSize");
+      if (_hepiText === "large" || _hepiText === "xlarge") {
+        document.documentElement.setAttribute("data-text-size", _hepiText);
+      }
+    } catch (e) {}
+  </script>
+  <style>
+  body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f9; overflow-x: hidden; }
+  /* grid/flex items don't shrink below their content's intrinsic width by default,
+     so a large font-size (Besar/Lebih besar mode) can blow a 1fr/flex track past
+     the viewport and drag the whole page into horizontal scroll */
+  .filterRow, .specGroup, .specPair, .cselect, input, select, textarea, .cselect-btn {
+    min-width: 0;
+  }
+  .header { background: #0d47a1; color: white; padding: 24px; font-size: 58px; font-weight: bold; text-align: center; }
+  .appNav {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 12px 16px;
+    background: #1565c0;
+  }
+  .appNavLink {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 10px 6px;
+    border-radius: 14px;
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: 800;
+    color: #fff;
+    background: rgba(255,255,255,0.12);
+    text-align: center;
+  }
+  .appNavLink.active {
+    background: #fff;
+    color: #0d47a1;
+  }
+  .appNavLink { line-height: 1.15; }
+
+  .headerBar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 18px;
+  }
+  .pageTitle {
+    flex: 1;
+    text-align: center;
+    font-size: 42px;
+    font-weight: 900;
+  }
+  .headerLogout {
+    width: auto !important;
+    padding: 8px 16px !important;
+    font-size: 24px !important;
+    background: #d32f2f !important;
+    margin-left: 16px;
+    border-radius: 12px !important;
+    min-height: auto !important;
+    box-shadow: none !important;
+  }
+  .headerLogout:hover { background: #b71c1c !important; }
+
+  .textSizeBar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #e8f1fc;
+    flex-wrap: wrap;
+  }
+  .textSizeLabel {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0d47a1;
+    flex: 0 0 auto;
+  }
+  .textSizeBtn {
+    width: auto !important;
+    flex: 1;
+    min-height: 44px !important;
+    padding: 10px 12px !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+    transform: none !important;
+    background: #fff !important;
+    color: #1565c0 !important;
+    border: 2px solid #1565c0 !important;
+    white-space: nowrap;
+  }
+  .textSizeBtn:hover { transform: none !important; background: #d6e8ff !important; }
+  .textSizeBtn.isActive {
+    background: #1565c0 !important;
+    color: #fff !important;
+  }
+  .filters { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+  .filterBox { background: white; padding: 24px; border-radius: 24px; box-shadow: 0 4px 16px rgba(0,0,0,.06); overflow: visible; }
+  .filterTitle { font-size: 42px; font-weight: bold; margin-bottom: 18px; color: #1565c0; }
+  .filterRow { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+
+  .specGroup { display: flex; flex-direction: column; gap: 10px; }
+  .specLabel { font-size: 26px; font-weight: 700; color: #444; }
+  .specPair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  input, select {
+    width: 100%;
+    padding: 22px;
+    font-size: 34px;
+    font-weight: 600;
+    border-radius: 18px;
+    border: 2px solid #ced4da;
+    box-sizing: border-box;
+    background-color: #f8f9fa;
+    color: #333;
+    touch-action: manipulation;
+  }
+  input:focus, select:focus { outline: none; border-color: #1565c0; background-color: #fff; }
+
+  button {
+    width: 100%;
+    padding: 26px;
+    font-size: 38px;
+    font-weight: 900;
+    border: none;
+    border-radius: 20px;
+    background: #1565c0;
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(21, 101, 192, 0.3);
+    transition: all 0.2s ease;
+  }
+  button:hover { background: #0d47a1; transform: translateY(-2px); }
+
+  .stats {
+    padding: 16px 24px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #444;
+    text-align: center;
+  }
+
+  /* =========================
+     RESULTS - NEW HORIZONTAL CARD UI
+     ========================= */
+  #results {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .cardMain {
+    display: grid;
+    grid-template-columns: 46% 54%;
+    align-items: stretch;
+    min-height: 250px;
+    background: #fff;
+  }
+
+  .thumbWrap {
+    position: relative;
+    background: #f0f0f0;
+    min-height: 240px;
+    overflow: hidden;
+  }
+
+  .thumbWrap > a {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .thumb {
+    width: 100%;
+    height: 100%;
+    min-height: 240px;
+    object-fit: cover;
+    display: block;
+    border-radius: 10;
+    margin: 0;
+  }
+
+  .placeholder {
+    background: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #777;
+    width: 100%;
+    height: 100%;
+    min-height: 250px;
+    font-size: 22px;
+  }
+
+  .cardBody {
+    padding: 14px 16px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .topRow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+
+  .titleWrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .title {
+    font-size: 40px;
+    font-weight: 900;
+    line-height: 1.15;
+    margin: 0 0 6px 0;
+    color: #111;
+    word-break: break-word;
+  }
+
+  .subline {
+    font-size: 25px;
+    color: #444;
+    margin-bottom: 6px;
+  }
+
+  .badge { display: inline-block; padding: 10px 18px; border-radius: 999px; font-size: 24px; font-weight: bold; margin-bottom: 18px; color: white; }
+    .jual { background: #1b5e20; }
+    .sewa { background: #1565c0; }
+
+  .price {
+    font-size: 46px;
+    font-weight: 900;
+    color: #1b7f2a;
+    line-height: 1.15;
+    margin: 4px 0 10px;
+    word-break: break-word;
+  }
+
+  .pricePerM2 {
+    display: block;
+    /* .price's own font-size swings from ~16px (compact grid cards) to
+       ~46px (mobile cards) across breakpoints — clamp so this sub-label
+       stays readable at the small end without overpowering at the big end */
+    font-size: clamp(11px, 0.4em, 16px);
+    font-weight: 700;
+    color: #5a8f63;
+  }
+
+  .meta {
+    font-size: 33px;
+    line-height: 1.5;
+    color: #222;
+    font-weight: 700;
+  }
+
+  .meta .muted {
+    color: #333;
+    font-weight: 700;
+  }
+
+  /* action buttons row */
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 10px 12px 12px;
+    background: #fff;
+  }
+
+  .actions a,
+  .actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 46px;
+    padding: 0 10px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 30px;
+    font-weight: 800;
+    text-align: center;
+    border: 1px solid #ececff;
+    background: #fff !important;
+    color: #2b2b2b !important;
+    box-shadow: 0 4px 10px rgba(95, 105, 255, 0.56);
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+
+  .actions a:hover,
+  .actions button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(95, 105, 255, 0.22);
+  }
+
+  /* detail button occupies its own full-width row above the other 4 */
+  .detailBtn {
+    grid-column: 1 / -1;
+    color: #1565c0 !important;
+  }
+
+  /* tombol per jenis - tetap putih, hanya beda warna icon/text */
+  .waBtn {
+    color: #11a860 !important;
+  }
+
+  .copyNarrativeBtn {
+    color: #ff8a00 !important;
+    background: #fff !important;
+  }
+
+  .folderBtn {
+    color: #ff7a00 !important;
+  }
+
+  .soldBtn {
+    color: #ff4d73 !important;
+    background: #fff !important;
+    border: 1px solid #ececff !important;
+  }
+
+  .disabledBtn {
+    opacity: .45 !important;
+    pointer-events: none;
+    filter: grayscale(0.15);
+  }
+
+  /* SOLD ribbon / sold state */
+  .cardSold {
+    position: relative;
+  }
+
+  .soldSticker {
+    position: absolute;
+    top: 16px;
+    left: -12px;
+    width: 150px;
+    text-align: center;
+    background: #e53935;
+    color: white;
+    font-size: 30px;
+    font-weight: 900;
+    transform: rotate(-35deg);
+    padding: 8px 0;
+    z-index: 20;
+    box-shadow: 0 4px 10px rgba(0,0,0,.2);
+  }
+
+  /* Empty state */
+  .emptyState {
+    background: white;
+    padding: 24px;
+    border-radius: 20px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #444;
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  }
+  .emptyState span {
+    display: block;
+    margin-top: 10px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #666;
+  }
+
+  /* =========================
+     DETAIL MODE (single shared property)
+     ========================= */
+  body.detailMode .filters {
+    display: none !important;
+  }
+
+  body.detailMode #results {
+    display: block !important;
+    padding: 16px;
+  }
+
+  body.detailMode .card {
+    max-width: 560px;
+    margin: 0 auto 16px;
+  }
+
+  /* big top-down photo instead of the compact side-by-side list card */
+  body.detailMode .cardMain {
+    grid-template-columns: 1fr;
+    min-height: unset;
+  }
+
+  body.detailMode .thumbWrap {
+    aspect-ratio: 4 / 5;
+    min-height: 0;
+    height: auto;
+  }
+
+  body.detailMode .thumb {
+    min-height: 0;
+    height: 100%;
+    object-fit: contain;
+    background: #f0f0f0;
+  }
+
+  body.detailMode .placeholder {
+    min-height: 0;
+    height: 100%;
+  }
+
+  body.detailMode .title {
+    font-size: 32px;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+  }
+
+  .narrativeBox {
+    margin: 12px 16px 0;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+    font-size: 17px;
+    line-height: 1.5;
+    color: #333;
+    white-space: pre-wrap;
+  }
+
+  /* Modal tetap */
+  .sold-modal{ display:none; position:fixed; top:0; left:0; right:0; bottom:0; width:100%; height:100%; background:rgba(0,0,0,.6); z-index:99999; }
+  .sold-box{ width:90%; max-width:400px; background:#fff; border-radius:15px; padding:25px; margin:25vh auto; text-align:center; }
+  .sold-text{ font-size:26px; font-weight:bold; line-height:1.5; margin:20px 0; }
+  .sold-buttons{ display:flex; gap:10px; }
+  .sold-buttons button{ flex:1; padding:12px; font-size:26px; font-weight:bold; }
+  /* TEST */
+  /* #hadap,
+  #furnished {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: 70px !important;
+    border: 5px solid red !important;
+    background: yellow !important;
+  } */
+  .periodeLabel {
+    margin-bottom: 8px;
+    font-size: 30px;
+    font-weight: 700;
+    color: #444;
+  }
+
+  .periodeHint {
+    font-weight: 400;
+    font-size: 26px;
+  }
+
+  /* ========================
+     CUSTOM DROPDOWN
+     ======================== */
+  .cselect {
+    position: relative;
+    width: 100%;
+  }
+
+  .cselect-btn {
+    width: 100%;
+    padding: 22px;
+    font-size: 34px;
+    font-weight: 600;
+    border-radius: 18px;
+    border: 2px solid #ced4da;
+    box-sizing: border-box;
+    background-color: #f8f9fa;
+    color: #888;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: none;
+    transition: border-color 0.2s, background-color 0.2s;
+    touch-action: manipulation;
+    transform: none !important;
+  }
+
+  .cselect-btn.cselect-selected { color: #333; }
+
+  .cselect-btn:hover {
+    background: #f0f4ff;
+    transform: none !important;
+  }
+
+  .cselect.open .cselect-btn,
+  .cselect-btn:focus {
+    outline: none;
+    border-color: #1565c0;
+    background-color: #fff;
+  }
+
+  .cselect-label {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+  }
+
+  .cselect-arrow {
+    margin-left: 10px;
+    font-size: 26px;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+    color: #555;
+  }
+
+  .cselect.open .cselect-arrow { transform: rotate(180deg); }
+
+  .cselect-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 2px solid #1565c0;
+    border-radius: 16px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    z-index: 9999;
+    max-height: 380px;
+    overflow-y: auto;
+  }
+
+  .cselect.open .cselect-panel { display: block; }
+
+  .cselect-opt {
+    padding: 18px 22px;
+    font-size: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #333;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .cselect-opt:last-child { border-bottom: none; }
+
+  .cselect-opt:hover,
+  .cselect-opt.cselect-active {
+    background: #e3f0ff;
+    color: #1565c0;
+  }
+
+  .cselect-opt.cselect-placeholder { color: #999; }
+
+  /* multi-select checked state */
+  .cselect-opt.cselect-checked {
+    background: #e3f0ff;
+    color: #1565c0;
+    font-weight: 700;
+  }
+
+  .cselect-opt.cselect-checked::after {
+    content: ' ✓';
+    font-weight: 900;
+    color: #1565c0;
+  }
+
+  /* ===== Mobile tuning ===== */
+  @media screen and (max-width:768px){
+    .appNav { padding: 8px 10px; gap: 6px; }
+    .appNavLink {
+      font-size: 13px;
+      min-height: 40px;
+      padding: 6px 3px;
+    }
+    .headerBar { padding: 10px 12px; }
+    .pageTitle { font-size: 20px; }
+    .headerLogout { font-size: 14px !important; padding: 6px 10px !important; margin-left: 8px; }
+    .textSizeBar { padding: 8px 10px; gap: 6px; }
+    .textSizeBtn { min-height: 40px !important; padding: 8px 8px !important; font-size: 15px !important; }
+
+    /* generic buttons (search/reset, login/sold modals) were still using the
+       desktop-sized defaults (38px font / 26px padding) on real phones */
+    button {
+      font-size: 15px !important;
+      padding: 12px 16px !important;
+      border-radius: 14px !important;
+    }
+
+    .stats { padding: 12px 16px; font-size: 15px; }
+
+    .sold-box { padding: 20px; }
+    .sold-box h2 { font-size: 18px; }
+    .sold-text { font-size: 15px; margin: 12px 0; }
+    .smallHint { font-size: 12px; }
+
+    .filters { padding: 8px 10px; gap: 8px; }
+    .filterBox {
+      padding:10px;
+      border-radius: 14px;
+    }
+    .filterTitle { font-size: 14px; margin-bottom: 6px; }
+    .specLabel { font-size: 12px; line-height: 1.25; }
+    .specGroup { gap: 3px; }
+    .specPair { gap: 6px; }
+    .periodeLabel { font-size: 13px; margin-bottom: 4px; }
+    .periodeHint { font-size: 11px; }
+
+    .filterBox .filterRow {
+      display:grid !important;
+      grid-template-columns:1fr 1fr !important;
+      gap:6px 8px !important;
+      height:auto !important;
+      overflow:visible !important;
+    }
+    #keyword {
+      grid-column: 1 / -1;
+    }
+    /* the Spesifikasi row packs 3 metrics per line (LT/LB/KT, then KM/Hadap/Furnished)
+       instead of one full-width metric per line, matching the compact reference layout */
+    .filterBox .filterRow:has(.specGroup) {
+      grid-template-columns: repeat(3, 1fr) !important;
+    }
+
+    .filterBox input,
+    .filterBox select {
+      width:100% !important;
+      height:auto !important;
+      min-height:38px !important;
+      display:block !important;
+      box-sizing:border-box !important;
+      padding:6px 8px !important;
+      font-size:13px !important;
+      border-radius: 10px !important;
+    }
+    /* the Min/Max pair inside a 3-per-row Spesifikasi metric only has ~1/6 of the
+       card's width to work with — the general filterBox input sizing above was
+       still too tall/rounded for that, so it rendered as a near-circle instead
+       of a text field and clipped "LT Min" down to "LT Mi" */
+    .filterBox .specPair input {
+      min-height: 32px !important;
+      padding: 4px 4px !important;
+      font-size: 11px !important;
+      border-radius: 8px !important;
+      text-align: center;
+    }
+
+    input, select {
+      height: auto !important;
+      min-height: 38px !important;
+      padding: 6px 8px !important;
+      font-size: 13px !important;
+      line-height: normal !important;
+      box-sizing: border-box;
+    }
+
+    #results {
+      padding: 10px;
+      gap: 10px;
+    }
+
+    .cardMain {
+      grid-template-columns: 40% 60%;
+      min-height: 150px;
+    }
+
+    .thumb,
+    .thumbWrap,
+    .placeholder {
+      min-height: 150px;
+    }
+
+    .cardBody {
+      padding: 10px 12px 8px;
+    }
+
+    .title {
+      font-size: 15px;
+      line-height: 1.25;
+      margin-bottom: 4px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .subline {
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .badge {
+      min-width: unset;
+      height: auto;
+      font-size: 10px;
+      padding: 4px 10px;
+      margin-bottom: 8px;
+    }
+
+    .price {
+      font-size: 17px;
+      margin: 2px 0 6px;
+    }
+
+    .meta {
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .actions {
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 6px !important;
+      padding: 8px 10px 10px !important;
+    }
+
+    .actions a,
+    .actions button {
+      min-height: 38px !important;
+      font-size: 11px !important;
+      padding: 0 4px !important;
+      border-radius: 999px !important;
+    }
+
+    .soldSticker {
+      top: 10px;
+      left: -10px;
+      width: 110px;
+      font-size: 13px;
+      padding: 5px 0;
+    }
+
+    .cselect-btn {
+      font-size: 13px !important;
+      padding: 6px 8px !important;
+      min-height: 38px !important;
+      height: auto !important;
+      border-radius: 10px !important;
+    }
+
+    .cselect-arrow { font-size: 13px !important; }
+
+    .cselect-opt {
+      font-size: 13px;
+      padding: 8px 12px;
+    }
+
+    /* Hadap/Furnished sit next to the Min/Max pill pairs in the same
+       Spesifikasi row — match the pills' compact height so the row doesn't
+       look uneven (dropdowns visibly taller than their neighbors). */
+    .filterBox .specGroup .cselect-btn {
+      min-height: 32px !important;
+      padding: 4px 8px !important;
+      font-size: 11px !important;
+    }
+    .filterBox .specGroup .cselect-arrow { font-size: 11px !important; }
+  }
+
+  /* =========================
+     DESKTOP LAYOUT (≥ 1024px)
+     ========================= */
+  @media (min-width: 1024px) {
+    /* --- Header --- */
+    .header {
+      font-size: 28px !important;
+      padding: 14px 24px !important;
+    }
+
+    .appNav { padding: 8px 24px; gap: 10px; }
+    .appNavLink { font-size: 14px; min-height: 36px; border-radius: 10px; }
+
+    /* --- Filters --- */
+    .filters {
+      padding: 14px 24px;
+      gap: 12px;
+    }
+
+    .filterBox {
+      padding: 16px 20px;
+    }
+
+    .filterTitle {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+
+    .filterRow {
+      gap: 10px;
+      align-items: end;
+    }
+    .specGroup .cselect-btn {
+      height: auto !important;
+      min-height: unset !important;
+      padding: 10px 14px !important;
+      font-size: 14px !important;
+    }
+
+    input, select {
+      font-size: 14px !important;
+      padding: 10px 14px !important;
+      height: auto !important;
+      min-height: unset !important;
+      border-radius: 10px;
+    }
+
+    button {
+      font-size: 16px !important;
+      padding: 12px 24px !important;
+      font-weight: 700;
+      border-radius: 12px;
+    }
+
+    .cselect-btn {
+      font-size: 14px !important;
+      padding: 10px 14px !important;
+      height: auto !important;
+      min-height: unset !important;
+      border-radius: 10px !important;
+    }
+
+    .cselect-arrow { font-size: 13px !important; margin-left: 6px; }
+
+    .cselect-opt {
+      font-size: 13px;
+      padding: 9px 14px;
+    }
+
+    .cselect-panel {
+      max-height: 240px;
+      border-radius: 10px;
+    }
+
+    /* --- Periode labels --- */
+    .periodeLabel { font-size: 14px; margin-bottom: 6px; }
+    .periodeHint  { font-size: 12px; }
+    .specLabel { font-size: 13px; }
+    .specPair { gap: 8px; }
+
+    /* --- Full-width messages inside the grid --- */
+    .emptyState {
+      grid-column: 1 / -1;
+    }
+
+    /* --- Stats bar --- */
+    .stats {
+      font-size: 15px;
+      padding: 10px 20px;
+    }
+
+    /* --- Results: 5-column grid --- */
+    #results {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      padding: 16px 20px;
+    }
+
+    /* --- Card: vertical (image top, content below) --- */
+    .card {
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .cardMain {
+      grid-template-columns: 1fr;
+      min-height: unset;
+    }
+
+    .thumbWrap {
+      min-height: 160px;
+      height: 160px;
+    }
+
+    .thumb,
+    .placeholder {
+      min-height: 160px;
+      height: 160px;
+    }
+
+    .cardBody {
+      padding: 10px 12px 8px;
+    }
+
+    .topRow {
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .title {
+      font-size: 14px;
+      margin-bottom: 3px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: calc(14px * 1.15 * 2);
+    }
+
+    .subline {
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      margin-bottom: 8px;
+    }
+
+    .price {
+      font-size: 16px;
+      margin: 2px 0 6px;
+    }
+
+    .meta {
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    /* --- Action buttons --- */
+    .actions {
+      gap: 6px !important;
+      padding: 8px 10px 10px !important;
+    }
+
+    .actions a,
+    .actions button {
+      font-size: 13px !important;
+      min-height: 34px !important;
+      padding: 0 6px !important;
+    }
+
+    /* --- SOLD sticker --- */
+    .soldSticker {
+      font-size: 14px;
+      width: 100px;
+      top: 10px;
+      left: -8px;
+      padding: 5px 0;
+    }
+
+    /* --- Login/modal box --- */
+    .sold-box {
+      margin: 15vh auto;
+    }
+
+    /* --- Detail mode: photo on the left, info/buttons on the right --- */
+    body.detailMode .card {
+      max-width: 1000px;
+      display: grid;
+      grid-template-columns: 46% 54%;
+      column-gap: 28px;
+      align-items: start;
+      overflow: visible;
+    }
+
+    /* let thumbWrap/cardBody become direct grid items of .card so the
+       photo can sit beside the info+buttons column instead of above it */
+    body.detailMode .cardMain {
+      display: contents;
+    }
+
+    /* keep its natural 4:5 size (set outside this media query) and stick
+       it in view while the description/buttons scroll past on the right,
+       instead of stretching it to match a tall narrative column */
+    body.detailMode .thumbWrap {
+      grid-column: 1;
+      grid-row: 1 / span 3;
+      position: sticky;
+      top: 20px;
+      align-self: start;
+    }
+
+    body.detailMode .cardBody {
+      padding-top: 16px;
+    }
+
+    /* keep the description compact on laptop screens instead of the huge
+       mobile-friendly paragraph size */
+    body.detailMode .narrativeBox {
+      font-size: 14px;
+      line-height: 1.5;
+      margin-top: 10px;
+      padding-top: 10px;
+    }
+    .headerLogout { font-size: 16px !important; padding: 8px 14px !important; }
+    .textSizeBtn { font-size: 13px !important; min-height: 36px !important; padding: 8px 12px !important; }
+    .textSizeLabel { font-size: 13px; }
+  }
+
+  html[data-text-size="large"] .appNavLink { font-size: 18px; min-height: 48px; }
+  html[data-text-size="large"] .pageTitle { font-size: 32px; }
+  html[data-text-size="large"] .filterTitle { font-size: 28px; }
+  html[data-text-size="large"] .specLabel { font-size: 22px; }
+  html[data-text-size="large"] .stats { font-size: 24px; }
+  html[data-text-size="large"] .sold-text { font-size: 30px; }
+  html[data-text-size="large"] .textSizeLabel { font-size: 18px; }
+  html[data-text-size="large"] .textSizeBtn { font-size: 18px !important; min-height: 48px !important; }
+
+  html[data-text-size="xlarge"] .appNavLink { font-size: 20px; min-height: 52px; }
+  html[data-text-size="xlarge"] .pageTitle { font-size: 36px; }
+  html[data-text-size="xlarge"] .filterTitle { font-size: 32px; }
+  html[data-text-size="xlarge"] .specLabel { font-size: 26px; }
+  html[data-text-size="xlarge"] .stats { font-size: 28px; }
+  html[data-text-size="xlarge"] .sold-text { font-size: 34px; }
+  html[data-text-size="xlarge"] .textSizeLabel { font-size: 20px; }
+  html[data-text-size="xlarge"] .textSizeBtn { font-size: 20px !important; min-height: 52px !important; }
+
+  @media screen and (max-width:768px){
+    html[data-text-size="large"] .appNavLink { font-size: 14px; min-height: 44px; }
+    html[data-text-size="large"] .pageTitle { font-size: 24px; }
+    html[data-text-size="large"] .filterTitle { font-size: 24px; }
+    html[data-text-size="large"] .specLabel { font-size: 22px; }
+    html[data-text-size="large"] input,
+    html[data-text-size="large"] select {
+      font-size: 28px !important;
+      min-height: 48px !important;
+    }
+    html[data-text-size="large"] .cselect-btn {
+      font-size: 28px !important;
+      min-height: 48px !important;
+    }
+    html[data-text-size="large"] .cselect-opt { font-size: 28px; }
+    html[data-text-size="large"] .title { font-size: 40px; }
+    html[data-text-size="large"] .subline { font-size: 22px; }
+    html[data-text-size="large"] .price { font-size: 50px; }
+    html[data-text-size="large"] .meta { font-size: 32px; }
+    html[data-text-size="large"] .stats { font-size: 22px; }
+    html[data-text-size="large"] .headerLogout { font-size: 16px !important; }
+    /* the size-toggle bar itself stays legible at its normal size instead of
+       growing with the content — otherwise "Lebih besar" wraps to two lines
+       and stretches the whole row taller than its "Normal"/"Besar" siblings */
+    html[data-text-size="large"] .textSizeBtn { font-size: 13px !important; min-height: 40px !important; padding: 8px 8px !important; }
+    html[data-text-size="large"] .textSizeLabel { font-size: 13px; }
+
+    html[data-text-size="xlarge"] .appNavLink { font-size: 16px; min-height: 48px; }
+    html[data-text-size="xlarge"] .pageTitle { font-size: 26px; }
+    html[data-text-size="xlarge"] .filterTitle { font-size: 26px; }
+    html[data-text-size="xlarge"] .specLabel { font-size: 26px; }
+    html[data-text-size="xlarge"] input,
+    html[data-text-size="xlarge"] select {
+      font-size: 34px !important;
+      min-height: 52px !important;
+    }
+    html[data-text-size="xlarge"] .cselect-btn {
+      font-size: 34px !important;
+      min-height: 52px !important;
+    }
+    html[data-text-size="xlarge"] .cselect-opt { font-size: 32px; }
+    html[data-text-size="xlarge"] .title { font-size: 44px; }
+    html[data-text-size="xlarge"] .subline { font-size: 24px; }
+    html[data-text-size="xlarge"] .price { font-size: 54px; }
+    html[data-text-size="xlarge"] .meta { font-size: 36px; }
+    html[data-text-size="xlarge"] .stats { font-size: 24px; }
+    html[data-text-size="xlarge"] .headerLogout { font-size: 18px !important; }
+    html[data-text-size="xlarge"] .textSizeBtn { font-size: 13px !important; min-height: 40px !important; padding: 8px 8px !important; }
+    html[data-text-size="xlarge"] .textSizeLabel { font-size: 13px; }
+
+    /* Besar/Lebih besar text no longer fits the side-by-side card (40/60
+       columns) without wrapping one word per line — stack photo on top and
+       info below instead, same as detailMode's single-column card. */
+    html[data-text-size="large"] .cardMain,
+    html[data-text-size="xlarge"] .cardMain {
+      grid-template-columns: 1fr;
+      min-height: unset;
+    }
+    html[data-text-size="large"] .thumbWrap,
+    html[data-text-size="xlarge"] .thumbWrap {
+      aspect-ratio: 4 / 5;
+      min-height: 0;
+      height: auto;
+    }
+    html[data-text-size="large"] .thumb,
+    html[data-text-size="xlarge"] .thumb,
+    html[data-text-size="large"] .placeholder,
+    html[data-text-size="xlarge"] .placeholder {
+      min-height: 0;
+      height: 100%;
+    }
+
+    /* Besar/Lebih besar text doesn't fit 3 Spesifikasi metrics per row either —
+       spread them over more rows instead of cramming every field down to fit. */
+    html[data-text-size="large"] .filterBox .filterRow:has(.specGroup) {
+      grid-template-columns: 1fr !important;
+    }
+    html[data-text-size="xlarge"] .filterBox .filterRow:has(.specGroup) {
+      grid-template-columns: 1fr !important;
+    }
+    html[data-text-size="large"] .filterBox .specPair input {
+      font-size: 28px !important;
+      min-height: 48px !important;
+      padding: 6px 8px !important;
+      border-radius: 12px !important;
+    }
+    html[data-text-size="xlarge"] .filterBox .specPair input {
+      font-size: 34px !important;
+      min-height: 52px !important;
+      padding: 6px 8px !important;
+      border-radius: 12px !important;
+    }
+    /* the compact Hadap/Furnished dropdown sizing (11px/32px) is only meant
+       for Normal's cramped 3-per-row layout — restore normal large/xlarge
+       sizing here since specificity would otherwise let it win over that */
+    html[data-text-size="large"] .filterBox .specGroup .cselect-btn {
+      font-size: 28px !important;
+      min-height: 48px !important;
+      padding: 6px 10px !important;
+    }
+    html[data-text-size="xlarge"] .filterBox .specGroup .cselect-btn {
+      font-size: 34px !important;
+      min-height: 52px !important;
+      padding: 6px 10px !important;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    html[data-text-size="large"] .appNavLink { font-size: 16px; min-height: 40px; }
+    html[data-text-size="large"] .pageTitle { font-size: 28px; }
+    html[data-text-size="large"] .filterTitle { font-size: 20px; }
+    html[data-text-size="large"] .specLabel { font-size: 16px; }
+    html[data-text-size="large"] input,
+    html[data-text-size="large"] select { font-size: 16px !important; }
+    html[data-text-size="large"] .cselect-btn { font-size: 16px !important; }
+    html[data-text-size="large"] .cselect-opt { font-size: 16px; }
+    html[data-text-size="large"] .title { font-size: 18px; min-height: calc(18px * 1.15 * 2); }
+    html[data-text-size="large"] .subline { font-size: 14px; }
+    html[data-text-size="large"] .price { font-size: 20px; }
+    html[data-text-size="large"] .meta { font-size: 14px; }
+    html[data-text-size="large"] .stats { font-size: 18px; }
+    html[data-text-size="large"] .actions a,
+    html[data-text-size="large"] .actions button { font-size: 15px !important; }
+    html[data-text-size="large"] body.detailMode .narrativeBox { font-size: 16px; }
+
+    html[data-text-size="xlarge"] .appNavLink { font-size: 18px; min-height: 44px; }
+    html[data-text-size="xlarge"] .pageTitle { font-size: 32px; }
+    html[data-text-size="xlarge"] .filterTitle { font-size: 22px; }
+    html[data-text-size="xlarge"] .specLabel { font-size: 18px; }
+    html[data-text-size="xlarge"] input,
+    html[data-text-size="xlarge"] select { font-size: 18px !important; }
+    html[data-text-size="xlarge"] .cselect-btn { font-size: 18px !important; }
+    html[data-text-size="xlarge"] .cselect-opt { font-size: 18px; }
+    html[data-text-size="xlarge"] .title { font-size: 20px; min-height: calc(20px * 1.15 * 2); }
+    html[data-text-size="xlarge"] .subline { font-size: 16px; }
+    html[data-text-size="xlarge"] .price { font-size: 22px; }
+    html[data-text-size="xlarge"] .meta { font-size: 16px; }
+    html[data-text-size="xlarge"] .stats { font-size: 20px; }
+    html[data-text-size="xlarge"] .actions a,
+    html[data-text-size="xlarge"] .actions button { font-size: 16px !important; }
+    html[data-text-size="xlarge"] body.detailMode .narrativeBox { font-size: 18px; }
+  }
+</style>
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/textsize.js"></script>
+</head>
+<body>
+  <!-- LOGIN MODAL -->
+  <div id="loginModal" class="sold-modal">
+    <div class="sold-box">
+      <h2> VERIFIKASI AKSES AGEN</h2>
+      <div class="sold-text" style="margin-bottom:10px;">Login dulu untuk akses tombol SOLD</div>
+
+      <div class="loginFields">
+        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
+        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
+        <div class="smallHint">Kode agen & PIN akan disimpan di browser HP ini agar tidak perlu login ulang setiap kali buka listing.</div>
+      </div>
+
+      <div class="sold-buttons">
+        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SOLD MODAL -->
+  <div id="soldModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>⚠️ KONFIRMASI SOLD</h2>
+      <div id="soldModalText" class="sold-text">
+        Yakin? Listing ini mau ditandai SOLD?
+      </div>
+      <div class="sold-buttons">
+        <button onclick="closeSoldModal()" style="background:#9ca3af;">Batal</button>
+        <button id="btnConfirmSold" onclick="confirmSold()" style="background:#d32f2f;">YA, PROSES</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MESSAGE MODAL -->
+  <div id="messageModal" class="sold-modal">
+    <div class="sold-box">
+      <div id="messageText" class="sold-text"></div>
+      <button onclick="closeMessage()">OK</button>
+    </div>
+  </div>
+
+  <div class="header headerBar">
+    <div class="pageTitle">HEPI PROPERTY LISTINGS</div>
+    <button class="headerLogout" onclick="doLogout()">Logout</button>
+  </div>
+
+  <nav class="appNav">
+    <a class="appNavLink active" href="/" target="_top">Cari Listing</a>
+    <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+    <a class="appNavLink" href="/scores" target="_top">Skor</a>
+    <a class="appNavLink" href="/history" target="_top">History</a>
+  </nav>
+  <div class="textSizeBar" role="group" aria-label="Ukuran teks">
+    <span class="textSizeLabel">Ukuran Font</span>
+    <button type="button" class="textSizeBtn" data-text-size-btn="normal">N</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="large">L</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="xlarge">XL</button>
+  </div>
+
+  <div class="filters">
+    <div class="filterBox">
+      <div class="filterTitle">Cari Properti</div>
+      <div class="filterRow">
+        <input id="keyword" placeholder="Area / Agen / Tipe (pisah dengan koma)">
+      </div>
+    </div>
+
+    <div class="filterBox">
+      <div class="filterTitle">Kategori Properti</div>
+      <div class="filterRow">
+        <div class="cselect" data-cid="kategori">
+          <button type="button" class="cselect-btn">
+            <span class="cselect-label">Jual / Sewa ?</span>
+            <span class="cselect-arrow">▾</span>
+          </button>
+          <div class="cselect-panel">
+            <div class="cselect-opt cselect-placeholder" data-val="">Jual / Sewa ?</div>
+            <div class="cselect-opt" data-val="Jual">Jual</div>
+            <div class="cselect-opt" data-val="Sewa">Sewa</div>
+          </div>
+          <input type="hidden" id="kategori" value="">
+        </div>
+
+        <div class="cselect" data-cid="tipe" data-multi="true">
+          <button type="button" class="cselect-btn">
+            <span class="cselect-label">Semua Tipe</span>
+            <span class="cselect-arrow">▾</span>
+          </button>
+          <div class="cselect-panel">
+            <div class="cselect-opt cselect-placeholder" data-val="">Semua Tipe</div>
+            <div class="cselect-opt" data-val="Rumah">Rumah</div>
+            <div class="cselect-opt" data-val="Tanah">Tanah</div>
+            <div class="cselect-opt" data-val="Ruko">Ruko</div>
+            <div class="cselect-opt" data-val="Apartemen">Apartemen</div>
+            <div class="cselect-opt" data-val="Gudang">Gudang</div>
+            <div class="cselect-opt" data-val="Kost">Kost</div>
+            <div class="cselect-opt" data-val="Kantor">Kantor</div>
+            <div class="cselect-opt" data-val="Pabrik">Pabrik</div>
+          </div>
+          <input type="hidden" id="tipe" value="">
+        </div>
+      </div>
+    </div>
+
+    <div class="filterBox">
+      <div class="filterTitle">Harga</div>
+      <div class="filterRow">
+        <input id="hargaMin" type="text" placeholder="Harga Min (juta)" oninput="formatHarga(this)">
+        <input id="hargaMax" type="text" placeholder="Harga Max (juta)" oninput="formatHarga(this)">
+      </div>
+    </div>
+
+    <div class="filterBox">
+      <div class="filterTitle">Spesifikasi</div>
+      <div class="filterRow">
+        <div class="specGroup">
+          <div class="specLabel">LT (m²)</div>
+          <div class="specPair">
+            <input id="ltMin" type="number" placeholder="LT Min">
+            <input id="ltMax" type="number" placeholder="LT Max">
+          </div>
+        </div>
+
+        <div class="specGroup">
+          <div class="specLabel">LB (m²)</div>
+          <div class="specPair">
+            <input id="lbMin" type="number" placeholder="LB Min">
+            <input id="lbMax" type="number" placeholder="LB Max">
+          </div>
+        </div>
+
+        <div class="specGroup">
+          <div class="specLabel">KT</div>
+          <div class="specPair">
+            <input id="ktMin" type="number" placeholder="KT Min">
+            <input id="ktMax" type="number" placeholder="KT Max">
+          </div>
+        </div>
+
+        <div class="specGroup">
+          <div class="specLabel">KM</div>
+          <div class="specPair">
+            <input id="kmMin" type="number" placeholder="KM Min">
+            <input id="kmMax" type="number" placeholder="KM Max">
+          </div>
+        </div>
+
+        <div class="specGroup">
+          <div class="specLabel">Hadap</div>
+          <div class="cselect" data-cid="hadap" data-multi="true">
+          <button type="button" class="cselect-btn">
+            <span class="cselect-label">Hadap mana?</span>
+            <span class="cselect-arrow">▾</span>
+          </button>
+          <div class="cselect-panel">
+            <div class="cselect-opt cselect-placeholder" data-val="">Hadap mana?</div>
+            <div class="cselect-opt" data-val="Utara">Utara</div>
+            <div class="cselect-opt" data-val="Selatan">Selatan</div>
+            <div class="cselect-opt" data-val="Timur">Timur</div>
+            <div class="cselect-opt" data-val="Barat">Barat</div>
+            <div class="cselect-opt" data-val="Tenggara">Tenggara</div>
+            <div class="cselect-opt" data-val="Timur Laut">Timur Laut</div>
+            <div class="cselect-opt" data-val="Barat Laut">Barat Laut</div>
+            <div class="cselect-opt" data-val="Barat Daya">Barat Daya</div>
+          </div>
+          <input type="hidden" id="hadap" value="">
+          </div>
+        </div>
+
+        <div class="specGroup">
+          <div class="specLabel">Furnished</div>
+          <div class="cselect" data-cid="furnished">
+          <button type="button" class="cselect-btn">
+            <span class="cselect-label">Furnished?</span>
+            <span class="cselect-arrow">▾</span>
+          </button>
+          <div class="cselect-panel">
+            <div class="cselect-opt cselect-placeholder" data-val="">Furnished?</div>
+            <div class="cselect-opt" data-val="Ya">Ya</div>
+            <div class="cselect-opt" data-val="Semi">Semi</div>
+            <div class="cselect-opt" data-val="Tidak">Tidak</div>
+          </div>
+          <input type="hidden" id="furnished" value="">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="filterBox">
+      <div class="filterTitle">Periode Listing</div>
+      <div class="periodeLabel">Periode Start</div>
+      <div class="filterRow" style="margin-bottom:16px;">
+        <div class="cselect" data-cid="periodeStartBulan">
+          <button type="button" class="cselect-btn">
+            <span class="cselect-label">Bulan Start</span>
+            <span class="cselect-arrow">▾</span>
+          </button>
+          <div class="cselect-panel">
+            <div class="cselect-opt cselect-placeholder" data-val="">Bulan Start</div>
+            <div class="cselect-opt" data-val="januari">Januari</div>
+            <div class="cselect-opt" data-val="februari">Februari</div>
+            <div class="cselect-opt" data-val="maret">Maret</div>
+            <div class="cselect-opt" data-val="april">April</div>
+            <div class="cselect-opt" data-val="mei">Mei</div>
+            <div class="cselect-opt" data-val="juni">Juni</div>
+            <div class="cselect-opt" data-val="juli">Juli</div>
+            <div class="cselect-opt" data-val="agustus">Agustus</div>
+            <div class="cselect-opt" data-val="september">September</div>
+            <div class="cselect-opt" data-val="oktober">Oktober</div>
+            <div class="cselect-opt" data-val="november">November</div>
+            <div class="cselect-opt" data-val="desember">Desember</div>
+          </div>
+          <input type="hidden" id="periodeStartBulan" value="">
+        </div>
+        <input id="periodeStartTahun" type="number" placeholder="Tahun Start (mis. 2026)" min="2000" max="2100">
+      </div>
+      <div class="periodeLabel">Periode End <span class="periodeHint">(opsional — kosong = sampai terbaru)</span></div>
+      <div class="filterRow">
+        <div class="cselect" data-cid="periodeEndBulan">
+          <button type="button" class="cselect-btn">
+            <span class="cselect-label">Bulan End (opsional)</span>
+            <span class="cselect-arrow">▾</span>
+          </button>
+          <div class="cselect-panel">
+            <div class="cselect-opt cselect-placeholder" data-val="">Bulan End (opsional)</div>
+            <div class="cselect-opt" data-val="januari">Januari</div>
+            <div class="cselect-opt" data-val="februari">Februari</div>
+            <div class="cselect-opt" data-val="maret">Maret</div>
+            <div class="cselect-opt" data-val="april">April</div>
+            <div class="cselect-opt" data-val="mei">Mei</div>
+            <div class="cselect-opt" data-val="juni">Juni</div>
+            <div class="cselect-opt" data-val="juli">Juli</div>
+            <div class="cselect-opt" data-val="agustus">Agustus</div>
+            <div class="cselect-opt" data-val="september">September</div>
+            <div class="cselect-opt" data-val="oktober">Oktober</div>
+            <div class="cselect-opt" data-val="november">November</div>
+            <div class="cselect-opt" data-val="desember">Desember</div>
+          </div>
+          <input type="hidden" id="periodeEndBulan" value="">
+        </div>
+        <input id="periodeEndTahun" type="number" placeholder="Tahun End (opsional)" min="2000" max="2100">
+      </div>
+    </div>
+
+    <div class="filterBox">
+      <div class="filterTitle">Sorting</div>
+      <div class="filterRow">
+        <div class="cselect" data-cid="sort">
+          <button type="button" class="cselect-btn cselect-selected">
+            <span class="cselect-label">Terbaru (Default)</span>
+            <span class="cselect-arrow">▾</span>
+          </button>
+          <div class="cselect-panel">
+            <div class="cselect-opt cselect-active" data-val="terbaru">Terbaru (Default)</div>
+            <div class="cselect-opt" data-val="terlama">Terlama</div>
+            <div class="cselect-opt" data-val="termahal">Termahal</div>
+            <div class="cselect-opt" data-val="termurah">Termurah</div>
+          </div>
+          <input type="hidden" id="sort" value="terbaru">
+        </div>
+      </div>
+    </div>
+
+    <div class="filterRow" style="grid-template-columns: 2fr 1fr;">
+      <button id="btnCari" onclick="runSearch()">🔎 CARIIN LISTING DONG</button>
+      <button onclick="resetFilter()" style="background:#9ca3af;">🔄 Reset</button>
+    </div>
+  </div>
+
+  <div class="stats" id="stats">Loading data...</div>
+  <div id="results"></div>
+
+  <script>
+    /* ========================
+       CUSTOM DROPDOWN ENGINE
+       ======================== */
+    function updateMultiSelectState(cs) {
+      var panel     = cs.querySelector('.cselect-panel');
+      var hidden    = cs.querySelector('input[type="hidden"]');
+      var label     = cs.querySelector('.cselect-label');
+      var btn       = cs.querySelector('.cselect-btn');
+      var placeholder = panel.querySelector('.cselect-opt.cselect-placeholder');
+
+      var checked = panel.querySelectorAll('.cselect-opt.cselect-checked');
+      var vals = [], texts = [];
+      checked.forEach(function(o) {
+        vals.push(o.dataset.val);
+        texts.push(o.textContent.replace(' ✓', '').trim());
+      });
+
+      hidden.value = vals.join(',');
+      if (vals.length === 0) {
+        label.textContent = placeholder ? placeholder.textContent.trim() : '';
+        btn.classList.remove('cselect-selected');
+      } else if (vals.length <= 2) {
+        label.textContent = texts.join(', ');
+        btn.classList.add('cselect-selected');
+      } else {
+        label.textContent = vals.length + ' dipilih';
+        btn.classList.add('cselect-selected');
+      }
+    }
+
+    function initCustomDropdowns() {
+      document.querySelectorAll('.cselect').forEach(function(cs) {
+        var isMulti = cs.dataset.multi === 'true';
+        var btn    = cs.querySelector('.cselect-btn');
+        var label  = cs.querySelector('.cselect-label');
+        var panel  = cs.querySelector('.cselect-panel');
+        var hidden = cs.querySelector('input[type="hidden"]');
+
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var isOpen = cs.classList.contains('open');
+          document.querySelectorAll('.cselect.open').forEach(function(x) {
+            x.classList.remove('open');
+          });
+          if (!isOpen) cs.classList.add('open');
+        });
+
+        panel.querySelectorAll('.cselect-opt').forEach(function(opt) {
+          opt.addEventListener('click', function(e) {
+            e.stopPropagation();
+
+            if (isMulti) {
+              var isPlaceholder = opt.classList.contains('cselect-placeholder');
+              if (isPlaceholder) {
+                // clear all
+                panel.querySelectorAll('.cselect-opt').forEach(function(o) {
+                  o.classList.remove('cselect-checked');
+                });
+              } else {
+                opt.classList.toggle('cselect-checked');
+              }
+              updateMultiSelectState(cs);
+              // panel stays open for multi
+            } else {
+              var val  = opt.dataset.val;
+              var text = opt.textContent.trim();
+              hidden.value = val;
+              label.textContent = text;
+              btn.classList.toggle('cselect-selected', val !== '');
+              panel.querySelectorAll('.cselect-opt').forEach(function(o) {
+                o.classList.toggle('cselect-active', o === opt);
+              });
+              cs.classList.remove('open');
+            }
+          });
+        });
+      });
+
+      document.addEventListener('click', function() {
+        document.querySelectorAll('.cselect.open').forEach(function(x) {
+          x.classList.remove('open');
+        });
+      });
+    }
+
+    function resetCustomDropdowns(ids) {
+      ids.forEach(function(id) {
+        var cs = document.querySelector('.cselect[data-cid="' + id + '"]');
+        if (!cs) return;
+        var isMulti = cs.dataset.multi === 'true';
+        var btn    = cs.querySelector('.cselect-btn');
+        var label  = cs.querySelector('.cselect-label');
+        var panel  = cs.querySelector('.cselect-panel');
+        var hidden = cs.querySelector('input[type="hidden"]');
+        cs.classList.remove('open');
+
+        if (isMulti) {
+          panel.querySelectorAll('.cselect-opt').forEach(function(o) {
+            o.classList.remove('cselect-checked');
+          });
+          hidden.value = '';
+          var ph = panel.querySelector('.cselect-opt.cselect-placeholder');
+          label.textContent = ph ? ph.textContent.trim() : '';
+          btn.classList.remove('cselect-selected');
+        } else {
+          var firstOpt = panel ? panel.querySelector('.cselect-opt') : null;
+          if (!firstOpt) return;
+          hidden.value = firstOpt.dataset.val || '';
+          label.textContent = firstOpt.textContent.trim();
+          btn.classList.toggle('cselect-selected', (firstOpt.dataset.val || '') !== '');
+          panel.querySelectorAll('.cselect-opt').forEach(function(o) {
+            o.classList.toggle('cselect-active', o === firstOpt && (firstOpt.dataset.val || '') !== '');
+          });
+        }
+      });
+    }
+
+    const _idMatch = String(new URLSearchParams(location.search).get("id") || "").match(/^[A-Za-z0-9_-]+/);
+    const INITIAL_ID = _idMatch ? _idMatch[0] : "";
+    const SCRIPT_URL = "/";
+    const isDetailMode = !!INITIAL_ID;
+
+    let ALL_DATA = [];
+    let soldFileId = "";
+    let soldFileName = "";
+    let sessionAgentCode = "";
+    let sessionPin = "";
+    let sessionStatus = "";
+    let sessionNama = "";
+
+    function isAdmin() {
+      if (sessionStatus === "admin") return true;
+      const storedStatus = localStorage.getItem("hepi_status");
+      if (storedStatus === "admin") {
+        sessionStatus = "admin";
+        return true;
+      }
+      return false;
+    }
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function safeStr(v) {
+      return String(v == null ? "" : v);
+    }
+
+    function escapeHtml(str) {
+      return safeStr(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function formatRupiah(num) {
+      const n = Number(num || 0);
+      return "Rp " + n.toLocaleString("id-ID");
+    }
+
+    function normalizeText(s) {
+      return safeStr(s).toLowerCase().trim();
+    }
+
+    function parseHargaJuta(inputElId, fallback) {
+      const raw = safeStr($(inputElId).value).replace(/\./g, "").replace(/,/g, "").trim();
+      if (!raw) return fallback;
+      return (Number(raw) || 0) * 1000000;
+    }
+
+    function isSold(item) {
+      return normalizeText(item.sold) === "ya";
+    }
+
+    function buildWaLink(kontak, message) {
+      let hp = safeStr(kontak).replace(/[^\d]/g, "");
+      if (!hp || hp.length < 8) return "#";
+
+      if (hp.startsWith("0")) hp = "62" + hp.slice(1);
+      else if (hp.startsWith("8")) hp = "62" + hp;
+      else if (hp.startsWith("62")) hp = hp;
+      else hp = "62" + hp;
+
+      return "https://wa.me/" + hp + "?text=" + encodeURIComponent(message);
+    }
+
+    function getShareUrl(fileId) {
+      return SCRIPT_URL + "?id=" + encodeURIComponent(fileId);
+    }
+
+    function getWhatsappLink(kontak, fileId) {
+      const message = getShareUrl(fileId) + "\n\nIni masih kah?";
+      return buildWaLink(kontak, message);
+    }
+
+    function isOwnerAgent(item) {
+      if (isAdmin()) return true;
+      const owner = normalizeText(item && item.agen);
+      if (!owner) return true;
+      return owner === normalizeText(getStoredNama());
+    }
+
+    function askOwnerToMarkSold(item) {
+      const message = getShareUrl(item.fileId) + "\n\nSetau saya ini sold, boleh bantu sold?";
+      const waLink = buildWaLink(item.kontak, message);
+
+      if (waLink === "#") {
+        showMessage("⚠️ Nomor kontak agen listing ini tidak tersedia.");
+        return;
+      }
+
+      window.open(waLink, "_blank");
+    }
+
+    function convertBulanTahun(str) {
+      if (!str) return new Date(2000, 0, 1);
+      const bulanMap = {
+        "januari":0, "februari":1, "maret":2, "april":3, "mei":4, "juni":5,
+        "juli":6, "agustus":7, "september":8, "oktober":9, "november":10, "desember":11
+      };
+
+      str = normalizeText(str);
+      const p = str.split(" ");
+      if (p.length < 2) return new Date(2000,0,1);
+
+      const bulan = bulanMap[p[0]] ?? 0;
+      let tahun = parseInt(p[1], 10);
+      if (isNaN(tahun)) tahun = 2000;
+      if (tahun < 100) tahun += 2000;
+
+      return new Date(tahun, bulan, 1);
+    }
+
+    function formatHarga(el) {
+      let v = safeStr(el.value).replace(/\D/g, "");
+      if (!v) {
+        el.value = "";
+        return;
+      }
+      el.value = Number(v).toLocaleString("id-ID");
+    }
+
+    function getStoredAgentCode() {
+      return sessionAgentCode || localStorage.getItem("hepi_agentCode") || "";
+    }
+
+    function getStoredPin() {
+      return sessionPin || localStorage.getItem("hepi_pin") || "";
+    }
+
+    function getStoredNama() {
+      return sessionNama || localStorage.getItem("hepi_nama") || "";
+    }
+
+    function saveSession(agentCode, pin, status, nama) {
+      sessionAgentCode = safeStr(agentCode).toUpperCase().trim();
+      sessionPin = safeStr(pin).trim();
+      sessionStatus = safeStr(status).toLowerCase().trim();
+      sessionNama = safeStr(nama).trim();
+      try {
+        localStorage.setItem("hepi_agentCode", sessionAgentCode);
+        localStorage.setItem("hepi_pin", sessionPin);
+        localStorage.setItem("hepi_status", sessionStatus);
+        localStorage.setItem("hepi_nama", sessionNama);
+      } catch (e) {}
+    }
+
+    function clearSession() {
+      sessionAgentCode = "";
+      sessionPin = "";
+      try {
+        localStorage.removeItem("hepi_agentCode");
+        localStorage.removeItem("hepi_pin");
+      } catch (e) {}
+      $("loginAgentCode").value = "";
+      $("loginPin").value = "";
+    }
+    
+    function doLogout() {
+      sessionAgentCode = "";
+      sessionPin = "";
+      sessionStatus = "";
+      sessionNama = "";
+      
+      try {
+        localStorage.removeItem("hepi_agentCode");
+        localStorage.removeItem("hepi_pin");
+        localStorage.removeItem("hepi_status");
+        localStorage.removeItem("hepi_nama");
+      } catch (e) {}
+      
+      location.reload();
+    }
+
+    function openLoginModal() {
+      $("loginModal").style.display = "block";
+    }
+
+    function closeLoginModal() {
+      $("loginModal").style.display = "none";
+    }
+
+    // Allow tapping outside the box to close the modal backdrop only if already logged in
+    document.getElementById("loginModal").addEventListener("click", function(e) {
+      if (e.target === this && (getStoredAgentCode() && getStoredPin())) {
+        closeLoginModal();
+      }
+    });
+
+    function openSoldModal(fileId, fileName, currentlySold) {
+      soldFileId = fileId;
+      soldFileName = fileName || "";
+
+      $("soldModalText").innerHTML = currentlySold
+        ? `Listing <b>${escapeHtml(fileName || "")}</b> saat ini sudah SOLD.<br><br>Yakin mau <b>UNSOLD</b>?`
+        : `Bener? Yakin listing <b>${escapeHtml(fileName || "")}</b><br>mau ditandai <b>SOLD</b>?`;
+
+      $("soldModal").style.display = "block";
+    }
+
+    function closeSoldModal() {
+      $("soldModal").style.display = "none";
+    }
+
+    function showMessage(msg) {
+      $("messageText").innerHTML = msg;
+      $("messageModal").style.display = "block";
+    }
+
+    function closeMessage() {
+      $("messageModal").style.display = "none";
+    }
+
+    function submitLogin() {
+      if (document.activeElement) document.activeElement.blur();
+
+      const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
+      const pin = safeStr($("loginPin").value).trim();
+
+      if (!code || !pin) {
+        alert("Hayoo isi Kode Agen dan PIN Anda!");
+        return;
+      }
+
+      const btn = $("btnSubmitLogin");
+      const originalText = btn.innerHTML;
+      btn.innerHTML = "Memeriksa... ⏳";
+      btn.disabled = true;
+
+      hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
+        .then(function(res) {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+
+          if (res && res.valid) {
+            sessionStatus = safeStr(res.status).toLowerCase().trim();
+            saveSession(code, pin, res.status, res.nama);
+            $("loginModal").style.display = "none";
+
+            if (soldFileId) {
+              const item = ALL_DATA.find(x => safeStr(x.fileId) === safeStr(soldFileId));
+              openSoldModal(soldFileId, soldFileName || (item ? item.fileName : ""), item ? isSold(item) : false);
+            } else if (isDetailMode) {
+              render();
+            } else {
+              loadData(false); 
+              $("stats").innerHTML = "👆 Isi filter di atas, lalu klik tombol <b>CARIIN LISTING</b>.";
+              $("results").innerHTML = "";
+            }
+          } else {
+            alert("❌ Ngawur! Akses Ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
+            $("loginPin").value = "";
+          }
+        })
+        .catch(function(err) {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
+        });
+    }
+
+    function markSold(fileId) {
+      if (document.activeElement) document.activeElement.blur();
+
+      const item = ALL_DATA.find(x => safeStr(x.fileId) === safeStr(fileId));
+      soldFileId = fileId;
+      soldFileName = item ? item.fileName : "";
+
+      const agentCode = getStoredAgentCode();
+      const pin = getStoredPin();
+
+      if (!agentCode || !pin) {
+        openLoginModal();
+        return;
+      }
+
+      if (item && !isOwnerAgent(item)) {
+        askOwnerToMarkSold(item);
+        return;
+      }
+
+      openSoldModal(fileId, soldFileName, item ? isSold(item) : false);
+    }
+
+    function confirmSold() {
+      const agentCode = getStoredAgentCode();
+      const pin = getStoredPin();
+
+      if (!soldFileId) {
+        closeSoldModal();
+        return;
+      }
+
+      if (!agentCode || !pin) {
+        closeSoldModal();
+        openLoginModal();
+        return;
+      }
+
+      const btn = $("btnConfirmSold");
+      const originalText = btn.innerHTML;
+      btn.innerHTML = "Memproses...";
+      btn.disabled = true;
+
+      hepiApi("/api/sold", { body: { fileId: soldFileId, agentCode: agentCode, pin: pin } })
+        .then(function(res) {
+          var status = res && res.status ? res.status : res;
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          closeSoldModal();
+
+          if (status === "UNSOLD") {
+            showMessage("✅ Hore! UNSOLD berhasil!");
+          } else if (status === "SOLD") {
+            showMessage("✅ Hore! SOLD berhasil!");
+          } else {
+            showMessage("✅ Status listing berhasil diperbarui.");
+          }
+
+          loadData(true, true);
+        })
+        .catch(function(err) {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          closeSoldModal();
+
+          const msg = err && err.message ? err.message : String(err);
+
+          if (/pin|salah|ditolak/i.test(msg)) {
+            clearSession();
+          }
+
+          showMessage("⚠️ " + msg);
+        });
+    }
+
+    function loadData(reRenderAfter = true, keepMessageOpen = false) {
+      if (reRenderAfter) {
+        $("stats").innerHTML = "⏳ Memuat data listing...";
+      }
+
+      hepiApi("/api/listings")
+        .then(function(data) {
+          ALL_DATA = Array.isArray(data) ? data : [];
+
+          if (isDetailMode) {
+            render();
+          } else if (reRenderAfter) {
+            $("stats").innerHTML = `Iyes! ${ALL_DATA.length} listing ditemukan.`;
+            render();
+          } else {
+            $("stats").innerHTML = `✅ Wuii.. Keren! Ada ${ALL_DATA.length} listing total saat ini..`;
+          }
+
+          if (keepMessageOpen) {
+            setTimeout(closeMessage, 1200);
+          }
+        })
+        .catch(function(err) {
+          if (reRenderAfter) {
+            $("results").innerHTML = `<div class="emptyState">ERROR: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+            $("stats").innerHTML = "Hore! Gagal memuat data listing.";
+          }
+        });
+    }
+
+    function runSearch() {
+      const btn = $("btnCari");
+      const originalText = btn.innerHTML;
+
+      if (ALL_DATA.length === 0) {
+        btn.innerHTML = "⏳ Memuat...";
+        btn.disabled = true;
+
+        $("stats").innerHTML = "⏳ Sabar, data listing sedang disiapkan...";
+        $("results").innerHTML = `
+          <div class="emptyState">
+            ⏳ Memuat data listing...
+            <span>Sabar.. tunggu ya..</span>
+          </div>
+        `;
+
+        hepiApi("/api/listings")
+          .then(function(data) {
+            ALL_DATA = Array.isArray(data) ? data : [];
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            render();
+          })
+          .catch(function(err) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            $("results").innerHTML = `<div class="emptyState">ERROR: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+            $("stats").innerHTML = "Hore! Gagal memuat data listing.";
+          });
+        return;
+      }
+
+      render();
+    }
+
+    function resetFilter() {
+      ["keyword", "hargaMin", "hargaMax", "ltMin", "ltMax", "lbMin", "lbMax", "ktMin", "ktMax", "kmMin", "kmMax", "periodeStartTahun", "periodeEndTahun"].forEach(id => {
+        $(id).value = "";
+      });
+
+      resetCustomDropdowns(["kategori", "tipe", "hadap", "furnished", "sort", "periodeStartBulan", "periodeEndBulan"]);
+
+      $("stats").innerHTML = "👆 Isi filternya dulu, terus klik tombol <b>CARIIN LISTING</b>.";
+      $("results").innerHTML = "";
+    }
+
+    /* ========================
+       PRESERVE FILTER STATE
+       across "PERBESAR" -> detail page -> "Semua Listing"
+       ======================== */
+    const FILTER_STATE_KEY = "hepi_filterState";
+    const PLAIN_FILTER_IDS = [
+      "keyword", "hargaMin", "hargaMax", "ltMin", "ltMax",
+      "lbMin", "lbMax", "ktMin", "ktMax", "kmMin", "kmMax", "periodeStartTahun", "periodeEndTahun"
+    ];
+    const CSELECT_FILTER_IDS = [
+      "kategori", "tipe", "hadap", "furnished", "sort", "periodeStartBulan", "periodeEndBulan"
+    ];
+
+    function getCurrentFilterState() {
+      const state = {};
+      PLAIN_FILTER_IDS.concat(CSELECT_FILTER_IDS).forEach(function(id) {
+        const el = $(id);
+        if (el) state[id] = el.value;
+      });
+      return state;
+    }
+
+    // Called right before navigating to the detail page (PERBESAR button),
+    // so we can restore the exact same search when the agent comes back.
+    function saveFilterState() {
+      try {
+        localStorage.setItem(FILTER_STATE_KEY, JSON.stringify(getCurrentFilterState()));
+      } catch (e) {}
+    }
+
+    // Reads + clears the saved state (one-time use), so a normal fresh
+    // visit (e.g. opening a shared detail link directly) still shows the
+    // regular empty "isi filter dulu" prompt instead of stale filters.
+    function consumeSavedFilterState() {
+      let state = null;
+      try {
+        const raw = localStorage.getItem(FILTER_STATE_KEY);
+        if (raw) state = JSON.parse(raw);
+        localStorage.removeItem(FILTER_STATE_KEY);
+      } catch (e) {}
+      return state;
+    }
+
+    function setCselectValue(cid, rawValue) {
+      const cs = document.querySelector('.cselect[data-cid="' + cid + '"]');
+      if (!cs) return;
+
+      const isMulti = cs.dataset.multi === "true";
+      const btn = cs.querySelector(".cselect-btn");
+      const label = cs.querySelector(".cselect-label");
+      const panel = cs.querySelector(".cselect-panel");
+      const hidden = cs.querySelector('input[type="hidden"]');
+
+      if (isMulti) {
+        const vals = String(rawValue || "").split(",").map(s => s.trim()).filter(Boolean);
+        panel.querySelectorAll(".cselect-opt").forEach(function(o) {
+          o.classList.toggle("cselect-checked", vals.indexOf(o.dataset.val) !== -1);
+        });
+        updateMultiSelectState(cs);
+        return;
+      }
+
+      const val = String(rawValue || "");
+      let opt = null;
+      panel.querySelectorAll(".cselect-opt").forEach(function(o) {
+        if ((o.dataset.val || "") === val) opt = o;
+      });
+      if (!opt) return;
+
+      hidden.value = opt.dataset.val || "";
+      label.textContent = opt.textContent.trim();
+      btn.classList.toggle("cselect-selected", (opt.dataset.val || "") !== "");
+      panel.querySelectorAll(".cselect-opt").forEach(function(o) {
+        o.classList.toggle("cselect-active", o === opt);
+      });
+    }
+
+    function applyFilterState(state) {
+      if (!state) return;
+
+      PLAIN_FILTER_IDS.forEach(function(id) {
+        if (state[id] !== undefined && $(id)) $(id).value = state[id];
+      });
+
+      CSELECT_FILTER_IDS.forEach(function(id) {
+        setCselectValue(id, state[id]);
+      });
+    }
+
+    function buildCardHtml(x) {
+      const sold = isSold(x);
+      const katNorm = normalizeText(x.kategori);
+      const isSewa = katNorm === "sewa";
+      const wa = x.kontak ? getWhatsappLink(x.kontak, x.fileId) : "#";
+      const waDisabled = !x.kontak;
+
+      let soldLabel = sold ? "UNSOLD" : "SOLD";
+      let soldBtnClass = "soldBtn";
+      let soldBtnDisabledAttr = "";
+
+      if (sold && !isAdmin()) {
+        soldLabel = "SOLD";
+        soldBtnClass = "soldBtn sold";
+        soldBtnDisabledAttr = "disabled";
+      }
+
+      const badgeClass = isSewa ? "topBadge sewa" : "topBadge jual";
+
+      return `
+  <div class="card ${sold ? "cardSold" : ""}" id="card-${escapeHtml(x.fileId)}">
+    ${sold ? `<div class="soldSticker">SOLD</div>` : ""}
+
+    <div class="cardMain">
+      <div class="thumbWrap">
+        ${x.thumbnail ? `
+          <a href="https://drive.google.com/file/d/${escapeHtml(x.thumbnail)}/view" target="_blank">
+          <img class="thumb"
+          src="https://lh3.googleusercontent.com/d/${escapeHtml(x.thumbnail)}=w600"
+          alt="thumbnail"
+          loading="lazy"
+          decoding="async"
+          onerror="this.style.display='none'; this.parentElement.nextElementSibling.style.display='flex';">
+          </a>
+          <div class="placeholder" style="display:none;">❌ Gagal muat foto</div>
+`         : `<div class="placeholder">NO PHOTO NO CRY</div>`}
+          </div>
+
+      <div class="cardBody">
+        <div class="topRow">
+          <div class="titleWrap">
+            <div class="title">${escapeHtml(x.area || "-")}</div>
+            <div class="subline">${escapeHtml(x.kategori || "-")} | ${escapeHtml(x.tipe || "-")}</div>
+          </div>
+
+          <div class="badge ${badgeClass}">
+            ${escapeHtml(x.kategori || "-")}
+          </div>
+        </div>
+
+        <div class="price">
+          ${formatRupiah(x.harga || 0)}
+          ${x.hargaPerM2 ? `<span class="pricePerM2">(${formatRupiah(x.hargaPerM2)} / m²)</span>` : ""}
+        </div>
+
+        <div class="meta">
+          LT ${escapeHtml(x.luasTanah || "-")} | LB ${escapeHtml(x.luasBangunan || "-")} <br>
+          KT ${escapeHtml(x.kamarTidur || "-")} | KM ${escapeHtml(x.kamarMandi || "-")} <br>
+          Hadap: ${escapeHtml(x.hadap || "-")} <br>
+          Furnished: ${escapeHtml(x.furnished || "-")} <br>
+          Agen: ${escapeHtml(x.agen || "-")} <br>
+          <span class="muted">Listing: ${escapeHtml(x.bulanTahun || "-")}</span>
+        </div>
+      </div>
+    </div>
+
+    ${isDetailMode ? `<div class="narrativeBox" id="narrative-${escapeHtml(x.fileId)}">⏳ Memuat deskripsi lengkap...</div>` : ""}
+
+    <div class="actions">
+      ${isDetailMode ? "" : `
+      <a
+        class="detailBtn"
+        target="_top"
+        onclick="saveFilterState()"
+        href="${getShareUrl(x.fileId)}"
+      >🔍 PERBESAR</a>
+      `}
+
+      <a
+        class="waBtn ${waDisabled ? "disabledBtn" : ""}"
+        target="_blank"
+        href="${waDisabled ? "#" : wa}"
+      >💬  W A</a>
+
+      <button
+        class="copyNarrativeBtn"
+        onclick="copyNarrative(this.dataset.fid, this)"
+        data-fid="${escapeHtml(x.fileId)}"
+      >📋 TXT</button>
+
+      <a
+        class="folderBtn ${!x.folderLink ? "disabledBtn" : ""}"
+        target="_blank"
+        href="${escapeHtml(x.folderLink || "#")}"
+      >📂 FOLDER</a>
+
+      <button
+        class="${soldBtnClass}"
+        ${soldBtnDisabledAttr}
+        onclick="markSold(this.dataset.fid)"
+        data-fid="${escapeHtml(x.fileId)}"
+      >⛔ ${soldLabel}</button>
+    </div>
+  </div>
+`;
+    }
+
+    function renderDetailView() {
+      const item = ALL_DATA.find(x => safeStr(x.fileId) === safeStr(INITIAL_ID));
+
+      if (!item) {
+        $("stats").innerHTML = "Detail properti tidak ditemukan.";
+        $("results").innerHTML = `
+          <div class="emptyState">
+            😕 Properti tidak ditemukan atau sudah tidak tersedia.
+            <span>Link mungkin salah, listing dihapus, atau agen nonaktif.</span>
+            <span>ID dicari: ${escapeHtml(INITIAL_ID)}</span>
+            <span>Total listing termuat: ${ALL_DATA.length}</span>
+          </div>
+          <div style="text-align:center;margin-top:16px;">
+            <button onclick="goToFullList()" style="width:auto;padding:14px 28px;">⬅ Lihat Semua Listing</button>
+          </div>
+        `;
+        return;
+      }
+
+      document.title = (item.area || "Detail Properti") + " - HEPI PROPERTY";
+      $("stats").innerHTML = "📌 Detail Properti";
+      $("results").innerHTML = `
+        <div style="padding:12px 12px 0;">
+          <button onclick="goToFullList()" style="width:auto;background:#546e7a;padding:10px 20px;font-size:16px;">⬅ Semua Listing</button>
+        </div>
+      ` + buildCardHtml(item);
+
+      loadNarrativeInline(item.fileId);
+    }
+
+    function loadNarrativeInline(fileId) {
+      const box = document.getElementById("narrative-" + fileId);
+      if (!box) return;
+
+      hepiApi("/api/narrative/" + encodeURIComponent(fileId))
+        .then(function(res) {
+          if (!box.isConnected) return;
+          if (!res || !res.success) {
+            box.style.display = "none";
+            return;
+          }
+          const narrative = parseNarrative(res.content);
+          if (!narrative) {
+            box.style.display = "none";
+            return;
+          }
+          box.textContent = narrative;
+        })
+        .catch(function() {
+          if (box.isConnected) box.style.display = "none";
+        });
+    }
+
+    function goToFullList() {
+      window.top.location.href = "/";
+    }
+
+    function render() {
+      try {
+        if (isDetailMode) { renderDetailView(); return; }
+
+        const keywordRaw = normalizeText($("keyword").value);
+        const kategori = safeStr($("kategori").value).trim();
+        const tipeArr = safeStr($("tipe").value).split(",").map(s => s.trim()).filter(Boolean);
+
+        const hargaMin = parseHargaJuta("hargaMin", 0);
+        const hargaMax = parseHargaJuta("hargaMax", 999999999999);
+
+        const ltMin = Number($("ltMin").value || 0);
+        const ltMax = Number($("ltMax").value || 999999999);
+        const lbMin = Number($("lbMin").value || 0);
+        const lbMax = Number($("lbMax").value || 999999999);
+        const ktMin = Number($("ktMin").value || 0);
+        const ktMax = Number($("ktMax").value || 999999999);
+        const kmMin = Number($("kmMin").value || 0);
+        const kmMax = Number($("kmMax").value || 999999999);
+
+        const hadapArr = safeStr($("hadap").value).split(",").map(s => s.trim()).filter(Boolean);
+        const furnished = safeStr($("furnished").value).trim();
+        const sort = safeStr($("sort").value).trim();
+
+        const periodeStartBulan = safeStr($("periodeStartBulan").value).trim();
+        const periodeEndBulan   = safeStr($("periodeEndBulan").value).trim();
+        const periodeStartTahunRaw = safeStr($("periodeStartTahun").value).trim();
+        const periodeEndTahunRaw   = safeStr($("periodeEndTahun").value).trim();
+        const currentYear = String(new Date().getFullYear());
+
+        // resolve effective year for start:
+        //   - year typed → use it
+        //   - month filled, year empty → current year
+        //   - only year filled (no month) → year stays as-is (will use januari fallback below)
+        const periodeStartTahun = periodeStartTahunRaw
+          || (periodeStartBulan ? currentYear : "");
+
+        // resolve effective year for end:
+        //   - year typed → use it
+        //   - month filled, year empty → follow start year (or current year)
+        //   - only year filled (no month) → year stays as-is (will use desember fallback below)
+        const periodeEndTahun = periodeEndTahunRaw
+          || (periodeEndBulan ? (periodeStartTahun || currentYear) : "");
+
+        // resolve effective month for start: empty → januari (only when year is given)
+        const effectiveStartBulan = periodeStartBulan || (periodeStartTahun ? "januari" : "");
+        // resolve effective month for end: empty → desember (only when year is given)
+        const effectiveEndBulan   = periodeEndBulan   || (periodeEndTahun   ? "desember" : "");
+
+        const periodeStart = (effectiveStartBulan && periodeStartTahun)
+          ? convertBulanTahun(effectiveStartBulan + " " + periodeStartTahun)
+          : null;
+
+        let periodeEnd = null;
+        if (effectiveEndBulan && periodeEndTahun) {
+          const endDate = convertBulanTahun(effectiveEndBulan + " " + periodeEndTahun);
+          endDate.setMonth(endDate.getMonth() + 1);
+          periodeEnd = endDate;
+        }
+
+        const keywordsArray = keywordRaw
+          ? keywordRaw.split(",").map(k => k.trim()).filter(Boolean)
+          : [];
+
+        const daftarAgen = [...new Set(
+          ALL_DATA.map(x => normalizeText(x.agen)).filter(Boolean)
+        )];
+
+        const daftarTipeKat = [
+          "jual", "sewa", "rumah", "tanah", "ruko", "apartemen",
+          "gudang", "kost", "kantor", "pabrik"
+        ];
+
+        let kataWajib = [];
+        let kataLokasi = [];
+
+        keywordsArray.forEach(kw => {
+          if (daftarAgen.includes(kw) || daftarTipeKat.includes(kw)) {
+            kataWajib.push(kw);
+          } else {
+            kataLokasi.push(kw);
+          }
+        });
+
+        let data = ALL_DATA.filter(x => {
+          if (!x) return false;
+
+          const areaT = normalizeText(x.area);
+          const agenT = normalizeText(x.agen);
+          const tipeT = normalizeText(x.tipe);
+          const katT = normalizeText(x.kategori);
+          const nameT = normalizeText(x.fileName);
+
+          const textLengkap = `${areaT} ${agenT} ${tipeT} ${katT} ${nameT}`;
+          const harga = Number(x.harga || 0);
+          const lt = Number(x.luasTanah || 0);
+          const lb = Number(x.luasBangunan || 0);
+          const kt = parseInt(String(x.kamarTidur || "0"), 10) || 0;
+          const km = parseInt(String(x.kamarMandi || "0"), 10) || 0;
+
+          let lolosWajib = true;
+          if (kataWajib.length > 0) {
+            lolosWajib = kataWajib.every(kw => textLengkap.includes(kw));
+          }
+
+          let lolosLokasi = true;
+          if (kataLokasi.length > 0) {
+            lolosLokasi = kataLokasi.some(kw =>
+              areaT.includes(kw) || nameT.includes(kw)
+            );
+          }
+
+          const itemDate = convertBulanTahun(x.bulanTahun);
+          if (periodeStart && itemDate < periodeStart) return false;
+          if (periodeEnd && itemDate >= periodeEnd) return false;
+
+          return (
+            lolosWajib &&
+            lolosLokasi &&
+            (!kategori || x.kategori === kategori) &&
+            (!tipeArr.length || tipeArr.includes(x.tipe)) &&
+            (harga >= hargaMin) &&
+            (harga <= hargaMax) &&
+            (lt >= ltMin) &&
+            (lt <= ltMax) &&
+            (lb >= lbMin) &&
+            (lb <= lbMax) &&
+            (kt >= ktMin) &&
+            (kt <= ktMax) &&
+            (km >= kmMin) &&
+            (km <= kmMax) &&
+            // When a Hadap filter is active, don't hard-exclude listings that
+            // simply have no hadap data on file — show them too, just ranked
+            // below the ones that actually match (see hadapMissRank below).
+            (!hadapArr.length || hadapArr.includes(x.hadap) || !x.hadap) &&
+            (!furnished || x.furnished === furnished)
+          );
+        });
+
+        // 0 = matches the selected hadap (or no hadap filter active), 1 = no
+        // hadap on file at all. Used to push "unknown hadap" listings to the
+        // bottom of the results without excluding them outright.
+        const hadapMissRank = x => (hadapArr.length && !x.hadap) ? 1 : 0;
+
+        // sold always sinks to the very bottom, regardless of sort mode
+        const soldRank = x => isSold(x) ? 1 : 0;
+
+        if (sort === "termurah") {
+          data.sort((a, b) => {
+            const soldDiff = soldRank(a) - soldRank(b);
+            if (soldDiff !== 0) return soldDiff;
+            const rankDiff = hadapMissRank(a) - hadapMissRank(b);
+            if (rankDiff !== 0) return rankDiff;
+            return Number(a.harga || 0) - Number(b.harga || 0);
+          });
+        } 
+        else if (sort === "termahal") {
+          data.sort((a, b) => {
+            const soldDiff = soldRank(a) - soldRank(b);
+            if (soldDiff !== 0) return soldDiff;
+            const rankDiff = hadapMissRank(a) - hadapMissRank(b);
+            if (rankDiff !== 0) return rankDiff;
+            return Number(b.harga || 0) - Number(a.harga || 0);
+          });
+        } 
+        else if (sort === "terlama") {
+          data.sort((a, b) => {
+            const soldDiff = soldRank(a) - soldRank(b);
+            if (soldDiff !== 0) return soldDiff;
+            const rankDiff = hadapMissRank(a) - hadapMissRank(b);
+            if (rankDiff !== 0) return rankDiff;
+            const dateA = convertBulanTahun(a.bulanTahun);
+            const dateB = convertBulanTahun(b.bulanTahun);
+            return dateA - dateB;
+          });
+        } 
+        else {
+          data.sort(function(a, b) {
+            const soldDiff = soldRank(a) - soldRank(b);
+            if (soldDiff !== 0) return soldDiff;
+
+            const rankDiff = hadapMissRank(a) - hadapMissRank(b);
+            if (rankDiff !== 0) return rankDiff;
+
+            const dateA = convertBulanTahun(a.bulanTahun);
+            const dateB = convertBulanTahun(b.bulanTahun);
+            if (dateB - dateA !== 0) return dateB - dateA;
+
+            // same month → sort by Drive file creation date (newer first)
+            return (Number(b.dateCreated) || 0) - (Number(a.dateCreated) || 0);
+          });
+        }
+
+        $("stats").innerHTML = `Iyes! ${data.length} listing ditemukan.`;
+
+        if (!data.length) {
+          $("results").innerHTML = `
+            <div class="emptyState">
+              🤣 wkwkwk... tidak ada hasil
+              <span>Coba longgarkan filter atau cek keyword yang dipakai.</span>
+            </div>
+          `;
+          return;
+        }
+
+        let html = "";
+
+        data.forEach(x => {
+          html += buildCardHtml(x);
+        });
+
+        $("results").innerHTML = html;
+
+      } catch (e) {
+        $("results").innerHTML = `
+          <div class="emptyState">
+            Terjadi error saat menyusun kartu listing.
+            <span>${escapeHtml(e.message || String(e))}</span>
+          </div>
+        `;
+      }
+    }
+
+    function parseNarrative(text) {
+      if (!text) return "";
+      
+      const lines = text.split(/\r?\n/);
+      const result = [];
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        result.push(line);
+        
+        if (/harga/i.test(line)) {
+          break;
+        }
+      }
+      
+      return result.join('\n').trim();
+    }
+
+    function copyNarrative(fileId, btnElement) {
+      if (!fileId) {
+        showMessage("⚠️ File ID tidak ditemukan.");
+        return;
+      }
+
+      const originalText = btnElement.innerHTML;
+      btnElement.innerHTML = "⏳";
+      btnElement.disabled = true;
+
+      hepiApi("/api/narrative/" + encodeURIComponent(fileId))
+        .then(function(res) {
+          btnElement.innerHTML = originalText;
+          btnElement.disabled = false;
+
+          if (!res || !res.success) {
+            showMessage("⚠️ Gagal mengambil narasi: " + (res && res.error ? res.error : "Unknown error"));
+            return;
+          }
+
+          const narrative = parseNarrative(res.content);
+
+          if (!narrative) {
+            showMessage("⚠️ Narasi kosong atau tidak ada kata 'harga'.");
+            return;
+          }
+
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(narrative).then(function() {
+              btnElement.innerHTML = "✅";
+              showMessage("✅ Narasi berhasil dicopy ke clipboard!");
+              setTimeout(function() {
+                btnElement.innerHTML = originalText;
+              }, 2000);
+            }).catch(function(err) {
+              fallbackCopyText(narrative);
+              btnElement.innerHTML = "✅";
+              setTimeout(function() {
+                btnElement.innerHTML = originalText;
+              }, 2000);
+            });
+          } else {
+            fallbackCopyText(narrative);
+            btnElement.innerHTML = "✅";
+            setTimeout(function() {
+              btnElement.innerHTML = originalText;
+            }, 2000);
+          }
+        })
+        .catch(function(err) {
+          btnElement.innerHTML = originalText;
+          btnElement.disabled = false;
+          showMessage("️ Error: " + (err && err.message ? err.message : String(err)));
+        });
+    }
+
+    function fallbackCopyText(text, successMsg) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        showMessage(successMsg || "✅ Narasi berhasil dicopy ke clipboard!");
+      } catch (err) {
+        showMessage("⚠️ Gagal copy otomatis. Silakan copy manual.");
+      }
+      
+      document.body.removeChild(textArea);
+    }
+
+    window.onload = function() {
+      initCustomDropdowns();
+
+      soldFileId = "";
+      soldFileName = "";
+
+      const agentCode = localStorage.getItem("hepi_agentCode");
+      const pin = localStorage.getItem("hepi_pin");
+
+      if (agentCode) $("loginAgentCode").value = agentCode;
+
+      let restoredFilterState = null;
+
+      if (isDetailMode) {
+        document.body.classList.add("detailMode");
+        const filtersEl = document.querySelector(".filters");
+        if (filtersEl) filtersEl.style.display = "none";
+        $("stats").innerHTML = "⏳ Memuat detail properti...";
+        $("results").innerHTML = "";
+      } else {
+        // Coming back from a "PERBESAR" detail page? Restore the same
+        // search instead of showing the empty "isi filter dulu" prompt.
+        // A fresh visit (e.g. a shared detail link's "Semua Listing"
+        // button, or opening the site directly) has nothing saved, so it
+        // falls back to the normal prompt below.
+        restoredFilterState = consumeSavedFilterState();
+
+        if (restoredFilterState) {
+          applyFilterState(restoredFilterState);
+          $("stats").innerHTML = "⏳ Memuat data listing...";
+        } else {
+          $("stats").innerHTML = "👆 Isi filternya dulu,, terus klik tombol <b>CARIIN LISTING</b>.";
+        }
+        $("results").innerHTML = "";
+      }
+
+      loadData(!!restoredFilterState);
+
+      if (!agentCode || !pin) {
+        setTimeout(() => {
+          openLoginModal();
+        }, 500);
+      }
+    };
+  </script>
+</body>
+</html>

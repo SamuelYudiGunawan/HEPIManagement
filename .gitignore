@@ -1,0 +1,6 @@
+node_modules/
+.env
+service-account.json
+data/*.json
+data/*.lock
+.DS_Store

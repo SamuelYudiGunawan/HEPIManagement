@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>Skor Agen</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/textsize.js"></script>
+  <script>
+    try {
+      var _hepiText = localStorage.getItem("hepi_textSize");
+      if (_hepiText === "large" || _hepiText === "xlarge") {
+        document.documentElement.setAttribute("data-text-size", _hepiText);
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="loginModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>VERIFIKASI AKSES AGEN</h2>
+      <div class="sold-text" style="margin-bottom:10px;">Login dulu untuk lihat skor agen</div>
+      <div class="loginFields">
+        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
+        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
+        <div class="smallHint">Kode agen & PIN disimpan di browser ini.</div>
+      </div>
+      <div class="sold-buttons">
+        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="header headerBar">
+    <div class="pageTitle">SKOR AGEN</div>
+    <button class="headerLogout" onclick="doLogout()">Logout</button>
+  </div>
+
+  <nav class="appNav">
+    <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+    <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+    <a class="appNavLink active" href="/scores" target="_top">Skor</a>
+    <a class="appNavLink" href="/history" target="_top">History</a>
+  </nav>
+  <div class="textSizeBar" role="group" aria-label="Ukuran teks">
+    <span class="textSizeLabel">Ukuran Font</span>
+    <button type="button" class="textSizeBtn" data-text-size-btn="normal">N</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="large">L</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="xlarge">XL</button>
+  </div>
+
+  <div class="pageWrap">
+    <div class="filterBox">
+      <div class="filterTitle" id="scoreTitle">Skor 2 bulan terakhir</div>
+      <div class="monthNav">
+        <button type="button" class="monthNavBtn" id="btnPrevMonth" aria-label="Bulan sebelumnya">‹</button>
+        <div class="monthNavLabel" id="monthNavLabel"></div>
+        <button type="button" class="monthNavBtn" id="btnNextMonth" aria-label="Bulan berikutnya">›</button>
+      </div>
+      <div id="chartArea" class="scoreList"></div>
+    </div>
+    <div class="filterBox">
+      <div class="filterTitle">Rincian</div>
+      <div id="tableArea" class="scoreTableWrap"></div>
+    </div>
+  </div>
+
+<script>
+  const SCRIPT_URL = "/";
+  let scoreData = null;
+  let monthIndex = 0;
+
+  function $(id) { return document.getElementById(id); }
+  function safeStr(v) { return String(v == null ? "" : v); }
+  function escapeHtml(str) {
+    return safeStr(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getStoredAgentCode() { return localStorage.getItem("hepi_agentCode") || ""; }
+  function getStoredPin() { return localStorage.getItem("hepi_pin") || ""; }
+
+  function saveSession(agentCode, pin, status, nama) {
+    try {
+      localStorage.setItem("hepi_agentCode", safeStr(agentCode).toUpperCase().trim());
+      localStorage.setItem("hepi_pin", safeStr(pin).trim());
+      localStorage.setItem("hepi_status", safeStr(status).toLowerCase().trim());
+      localStorage.setItem("hepi_nama", safeStr(nama).trim());
+    } catch (e) {}
+  }
+
+  function isLoggedIn() {
+    return !!(getStoredAgentCode() && getStoredPin());
+  }
+
+  function openLogin() { $("loginModal").style.display = "block"; }
+  function closeLogin() { $("loginModal").style.display = "none"; }
+
+  function doLogout() {
+    try {
+      localStorage.removeItem("hepi_agentCode");
+      localStorage.removeItem("hepi_pin");
+      localStorage.removeItem("hepi_status");
+      localStorage.removeItem("hepi_nama");
+    } catch (e) {}
+    window.top.location.href = "/";
+  }
+
+  function submitLogin() {
+    const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
+    const pin = safeStr($("loginPin").value).trim();
+    if (!code || !pin) {
+      alert("Hayoo isi Kode Agen dan PIN Anda!");
+      return;
+    }
+
+    const btn = $("btnSubmitLogin");
+    const original = btn.innerHTML;
+    btn.innerHTML = "Memeriksa...";
+    btn.disabled = true;
+
+    hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
+      .then(function(res) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        if (res && res.valid) {
+          saveSession(code, pin, res.status, res.nama);
+          closeLogin();
+          loadScores();
+        } else {
+          alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
+          $("loginPin").value = "";
+        }
+      })
+      .catch(function(err) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
+      });
+  }
+
+  function visibleMonth() {
+    const months = (scoreData && scoreData.months) || [];
+    if (!months.length) return null;
+    if (monthIndex < 0) monthIndex = 0;
+    if (monthIndex > months.length - 1) monthIndex = months.length - 1;
+    return months[monthIndex];
+  }
+
+  function renderMonth() {
+    const months = (scoreData && scoreData.months) || [];
+    const month = visibleMonth();
+    $("monthNavLabel").textContent = month ? (month.bulan || month.monthKey) : "";
+    $("btnPrevMonth").disabled = monthIndex <= 0;
+    $("btnNextMonth").disabled = monthIndex >= months.length - 1;
+    renderScores(month);
+  }
+
+  function renderScores(month) {
+    const agents = (month && month.agents) || [];
+    const bulan = month && month.bulan ? month.bulan : "";
+
+    if (!agents.length) {
+      $("chartArea").innerHTML = '<div class="emptyState">Belum ada aktivitas' + (bulan ? " " + escapeHtml(bulan) : "") + '.</div>';
+      $("tableArea").innerHTML = '<div class="emptyState">Belum ada data.</div>';
+      return;
+    }
+
+    const max = Math.max.apply(null, agents.map(function(a) { return Number(a.skor) || 0; })) || 1;
+    $("chartArea").innerHTML = agents.map(function(a) {
+      const pct = Math.max(0, Math.min(100, (Number(a.skor) || 0) / max * 100));
+      return '<div class="scoreRow">'
+        + '<div class="scoreName">' + escapeHtml(a.nama || a.kode) + '</div>'
+        + '<div class="scoreTrack"><div class="scoreBar" style="width:' + pct + '%"></div></div>'
+        + '<div class="scoreValue">' + escapeHtml(a.skor) + '</div>'
+        + '</div>';
+    }).join("");
+
+    const maxListing = Math.max.apply(null, agents.map(function(a) { return Number(a.listing) || 0; }));
+    const maxKonten = Math.max.apply(null, agents.map(function(a) { return Number(a.konten) || 0; }));
+    const maxPosting = Math.max.apply(null, agents.map(function(a) { return Number(a.posting) || 0; }));
+    const maxSurvey = Math.max.apply(null, agents.map(function(a) { return Number(a.survey) || 0; }));
+
+    function maxClass(value, top) {
+      return (top > 0 && Number(value) === top) ? ' class="scoreMax"' : "";
+    }
+
+    let table = '<table class="scoreTable"><thead><tr>'
+      + '<th>#</th><th>Nama</th><th>Listing</th><th>Konten</th><th>Posting</th><th>Survey</th><th>Closing</th><th>Skor</th><th>Status</th><th>Kekurangan</th>'
+      + '</tr></thead><tbody>';
+    agents.forEach(function(a, i) {
+      const p = a.progress || {};
+      const passed = !!p.passed;
+      let kurang = "—";
+      if (!passed) {
+        const bits = [];
+        if (Number(p.needListing) > 0) bits.push("Listing " + p.needListing);
+        if (Number(p.needPosting) > 0) bits.push("Posting " + p.needPosting);
+        kurang = bits.join(", ");
+      }
+      table += '<tr>'
+        + '<td>' + (i + 1) + '</td>'
+        + '<td>' + escapeHtml(a.nama || a.kode) + '</td>'
+        + '<td' + maxClass(a.listing, maxListing) + '>' + escapeHtml(a.listing) + '</td>'
+        + '<td' + maxClass(a.konten, maxKonten) + '>' + escapeHtml(a.konten) + '</td>'
+        + '<td' + maxClass(a.posting, maxPosting) + '>' + escapeHtml(a.posting) + '</td>'
+        + '<td' + maxClass(a.survey, maxSurvey) + '>' + escapeHtml(a.survey) + '</td>'
+        + '<td>' + escapeHtml(a.closing) + '</td>'
+        + '<td><b>' + escapeHtml(a.skor) + '</b></td>'
+        + '<td class="' + (passed ? "statusPass" : "statusFail") + '">' + (passed ? "OK" : "NOT OK") + '</td>'
+        + '<td>' + escapeHtml(kurang) + '</td>'
+        + '</tr>';
+    });
+    table += '</tbody></table>';
+    $("tableArea").innerHTML = table;
+  }
+
+  $("btnPrevMonth").addEventListener("click", function() {
+    if (monthIndex <= 0) return;
+    monthIndex -= 1;
+    renderMonth();
+  });
+
+  $("btnNextMonth").addEventListener("click", function() {
+    const months = (scoreData && scoreData.months) || [];
+    if (monthIndex >= months.length - 1) return;
+    monthIndex += 1;
+    renderMonth();
+  });
+
+  function loadScores() {
+    if (!isLoggedIn()) {
+      openLogin();
+      $("chartArea").innerHTML = '<div class="emptyState">Login dulu untuk lihat skor.</div>';
+      return;
+    }
+
+    $("chartArea").innerHTML = '<div class="emptyState">Memuat skor...</div>';
+    $("tableArea").innerHTML = "";
+    $("monthNavLabel").textContent = "";
+
+    hepiApi("/api/scores", { body: { agentCode: getStoredAgentCode(), pin: getStoredPin() } })
+      .then(function(data) {
+        scoreData = data && data.months ? data : { months: data && data.agents ? [data] : [] };
+        const months = scoreData.months || [];
+        monthIndex = months.length ? months.length - 1 : 0;
+        renderMonth();
+      })
+      .catch(function(err) {
+        const msg = err && err.message ? err.message : String(err);
+        $("chartArea").innerHTML = '<div class="emptyState">' + escapeHtml(msg) + '</div>';
+        if (/login|salah|ngawur/i.test(msg)) openLogin();
+      });
+  }
+
+  if (isLoggedIn()) loadScores();
+  else openLogin();
+</script>
+</body>
+</html>

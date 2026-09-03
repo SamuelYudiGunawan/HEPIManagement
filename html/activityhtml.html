@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>Daily Activity</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/textsize.js"></script>
+  <script>
+    try {
+      var _hepiText = localStorage.getItem("hepi_textSize");
+      if (_hepiText === "large" || _hepiText === "xlarge") {
+        document.documentElement.setAttribute("data-text-size", _hepiText);
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="loginModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>VERIFIKASI AKSES AGEN</h2>
+      <div class="sold-text" style="margin-bottom:10px;">Login dulu untuk isi Daily Activity</div>
+      <div class="loginFields">
+        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
+        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
+        <div class="smallHint">Kode agen & PIN disimpan di browser ini.</div>
+      </div>
+      <div class="sold-buttons">
+        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="messageModal" class="sold-modal">
+    <div class="sold-box">
+      <div id="messageText" class="sold-text"></div>
+      <button onclick="closeMessage()">OK</button>
+    </div>
+  </div>
+
+  <div class="header headerBar">
+    <div class="pageTitle">DAILY ACTIVITY</div>
+    <button class="headerLogout" onclick="doLogout()">Logout</button>
+  </div>
+
+  <nav class="appNav">
+    <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+    <a class="appNavLink active" href="/activity" target="_top">Aktivitas</a>
+    <a class="appNavLink" href="/scores" target="_top">Skor</a>
+    <a class="appNavLink" href="/history" target="_top">History</a>
+  </nav>
+  <div class="textSizeBar" role="group" aria-label="Ukuran teks">
+    <span class="textSizeLabel">Ukuran</span>
+    <button type="button" class="textSizeBtn" data-text-size-btn="normal">Normal</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="large">Besar</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="xlarge">Lebih besar</button>
+  </div>
+
+  <div class="pageWrap activityPage">
+    <div class="filterBox">
+      <div class="filterTitle">Aktivitas Harian</div>
+      <div class="filterRow activityFields">
+        <div class="specGroup specFull">
+          <div class="specLabel">Nama</div>
+          <input id="namaAgen" readonly placeholder="Login dulu">
+        </div>
+        <div class="specGroup specFull">
+          <div class="specLabel">Tanggal Aktifitas</div>
+          <input id="tanggal" type="date">
+        </div>
+        <div class="specGroup">
+          <div class="specLabel">Listing</div>
+          <input id="listing" class="countField" type="number" min="0" step="1" value="0">
+        </div>
+        <div class="specGroup">
+          <div class="specLabel">Konten</div>
+          <input id="konten" class="countField" type="number" min="0" step="1" value="0">
+        </div>
+        <div class="specGroup">
+          <div class="specLabel">Posting IG dan Portal</div>
+          <input id="posting" class="countField" type="number" min="0" step="1" value="0">
+        </div>
+        <div class="specGroup">
+          <div class="specLabel">Survey Lokasi</div>
+          <input id="survey" class="countField" type="number" min="0" step="1" value="0">
+        </div>
+      </div>
+      <div class="formActions">
+        <button id="btnSubmitActivity" onclick="submitActivity()">SIMPAN AKTIVITAS</button>
+      </div>
+      <div id="submitStatus" class="smallHint"></div>
+    </div>
+  </div>
+
+<script>
+  const SCRIPT_URL = "/";
+  let dateAlreadyFilled = false;
+
+  function $(id) { return document.getElementById(id); }
+
+  function safeStr(v) { return String(v == null ? "" : v); }
+
+  function getStoredAgentCode() {
+    return localStorage.getItem("hepi_agentCode") || "";
+  }
+  function getStoredPin() {
+    return localStorage.getItem("hepi_pin") || "";
+  }
+  function getStoredNama() {
+    return localStorage.getItem("hepi_nama") || "";
+  }
+
+  function saveSession(agentCode, pin, status, nama) {
+    try {
+      localStorage.setItem("hepi_agentCode", safeStr(agentCode).toUpperCase().trim());
+      localStorage.setItem("hepi_pin", safeStr(pin).trim());
+      localStorage.setItem("hepi_status", safeStr(status).toLowerCase().trim());
+      localStorage.setItem("hepi_nama", safeStr(nama).trim());
+    } catch (e) {}
+  }
+
+  function todayInputValue() {
+    const d = new Date();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+
+  function fillNama() {
+    $("namaAgen").value = getStoredNama() || getStoredAgentCode() || "";
+  }
+
+  function setupCountFields() {
+    const fields = document.querySelectorAll(".countField");
+    for (let i = 0; i < fields.length; i++) {
+      fields[i].addEventListener("focus", function() {
+        if (this.value === "0") this.value = "";
+      });
+      fields[i].addEventListener("blur", function() {
+        if (String(this.value).trim() === "") this.value = "0";
+      });
+    }
+  }
+
+  function countValue(id) {
+    const raw = safeStr($(id).value).trim();
+    if (!raw) return "0";
+    return raw;
+  }
+
+  function openLogin() {
+    $("loginModal").style.display = "block";
+  }
+
+  function closeLogin() {
+    $("loginModal").style.display = "none";
+  }
+
+  function showMessage(msg) {
+    $("messageText").textContent = msg;
+    $("messageModal").style.display = "block";
+  }
+
+  function closeMessage() {
+    $("messageModal").style.display = "none";
+  }
+
+  function setDateFilledState(filled, tanggal, hasClosing) {
+    dateAlreadyFilled = !!filled;
+    const btn = $("btnSubmitActivity");
+    const status = $("submitStatus");
+    if (filled) {
+      btn.disabled = true;
+      status.className = "alreadyBanner";
+      status.textContent = "Tanggal " + (tanggal || "") + " sudah diisi. Tidak bisa submit lagi.";
+    } else {
+      btn.disabled = false;
+      status.className = "smallHint";
+      status.textContent = hasClosing
+        ? "Closing sudah dicatat admin. Silakan isi aktivitas hari ini."
+        : "";
+    }
+  }
+
+  function checkSelectedDate() {
+    if (!isLoggedIn()) return;
+    const tanggal = safeStr($("tanggal").value).trim();
+    if (!tanggal) {
+      setDateFilledState(false, "", false);
+      return;
+    }
+    hepiApi("/api/activity/check?agentCode=" + encodeURIComponent(getStoredAgentCode()) + "&pin=" + encodeURIComponent(getStoredPin()) + "&tanggal=" + encodeURIComponent(tanggal))
+      .then(function(res) {
+        setDateFilledState(res && res.filled, (res && res.tanggal) || tanggal, res && res.hasClosing);
+      })
+      .catch(function() {
+        setDateFilledState(false, tanggal, false);
+      });
+  }
+
+  function isLoggedIn() {
+    return !!(getStoredAgentCode() && getStoredPin());
+  }
+
+  function doLogout() {
+    try {
+      localStorage.removeItem("hepi_agentCode");
+      localStorage.removeItem("hepi_pin");
+      localStorage.removeItem("hepi_status");
+      localStorage.removeItem("hepi_nama");
+    } catch (e) {}
+    window.top.location.href = "/";
+  }
+
+  function submitLogin() {
+    const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
+    const pin = safeStr($("loginPin").value).trim();
+    if (!code || !pin) {
+      alert("Hayoo isi Kode Agen dan PIN Anda!");
+      return;
+    }
+
+    const btn = $("btnSubmitLogin");
+    const original = btn.innerHTML;
+    btn.innerHTML = "Memeriksa...";
+    btn.disabled = true;
+
+    hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
+      .then(function(res) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        if (res && res.valid) {
+          saveSession(code, pin, res.status, res.nama);
+          fillNama();
+          closeLogin();
+          checkSelectedDate();
+        } else {
+          alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
+          $("loginPin").value = "";
+        }
+      })
+      .catch(function(err) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
+      });
+  }
+
+  function submitActivity() {
+    if (!isLoggedIn()) {
+      openLogin();
+      return;
+    }
+
+    const tanggal = safeStr($("tanggal").value).trim();
+    if (!tanggal) {
+      alert("Isi Tanggal Aktifitas dulu.");
+      return;
+    }
+
+    if (dateAlreadyFilled) {
+      showMessage("Tanggal " + tanggal + " sudah diisi. Tidak bisa submit lagi.");
+      return;
+    }
+
+    const payload = {
+      tanggal: tanggal,
+      listing: countValue("listing"),
+      konten: countValue("konten"),
+      posting: countValue("posting"),
+      survey: countValue("survey")
+    };
+
+    const btn = $("btnSubmitActivity");
+    const original = btn.innerHTML;
+    btn.innerHTML = "Menyimpan...";
+    btn.disabled = true;
+    $("submitStatus").textContent = "";
+
+    hepiApi("/api/activity", { body: Object.assign({ agentCode: getStoredAgentCode(), pin: getStoredPin() }, payload) })
+      .then(function(res) {
+        if (res && res.ok) {
+          try {
+            localStorage.setItem("hepi_just_saved", JSON.stringify({
+              ok: true,
+              updated: !!res.updated,
+              tanggal: res.tanggal || ""
+            }));
+          } catch (e) {}
+          window.top.location.href = "/history";
+          return;
+        }
+        btn.innerHTML = original;
+        btn.disabled = false;
+        if (res && res.alreadyFilled) {
+          setDateFilledState(true, res.tanggal || tanggal);
+          showMessage("Tanggal " + (res.tanggal || tanggal) + " sudah diisi. Tidak bisa submit lagi.");
+          return;
+        }
+        $("submitStatus").className = "smallHint";
+        $("submitStatus").textContent = "Gagal menyimpan.";
+      })
+      .catch(function(err) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        const msg = err && err.message ? err.message : String(err);
+        $("submitStatus").textContent = msg;
+        if (/login|salah|ngawur/i.test(msg)) openLogin();
+      });
+  }
+
+  $("tanggal").value = todayInputValue();
+  $("tanggal").addEventListener("change", checkSelectedDate);
+  fillNama();
+  setupCountFields();
+  if (!isLoggedIn()) openLogin();
+  else checkSelectedDate();
+</script>
+</body>
+</html>
