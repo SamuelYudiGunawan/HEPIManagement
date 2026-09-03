@@ -1,4 +1,4 @@
-const CACHE = "hepi-static-v1";
+const CACHE = "hepi-static-v2";
 const ASSETS = [
   "/",
   "/styles.css",
