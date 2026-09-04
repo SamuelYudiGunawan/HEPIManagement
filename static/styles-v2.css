@@ -301,11 +301,14 @@
   }
   .previewBody img { max-width: 92vw; max-height: 90vh; object-fit: contain; display: block; }
   .previewBody iframe { width: 90vw; max-width: 900px; height: 85vh; border: 0; }
-  .queueNarasiCell {
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .narasiPreviewText {
+    white-space: pre-wrap;
+    text-align: left;
+    padding: 24px;
+    max-width: 600px;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #333;
   }
 
   .listingCard {

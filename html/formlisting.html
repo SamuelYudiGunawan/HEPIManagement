@@ -65,29 +65,9 @@
     <div class="filterBox">
       <div class="filterTitle" id="formTitle">Kirim Form Listing</div>
       <div id="editHint" class="smallHint" style="display:none;">Mode edit: kirim ulang file yang perlu diperbaiki saja, atau ganti narasi.</div>
-      <div class="filterRow">
-        <div class="specGroup">
-          <div class="specLabel">Foto Form Fisik (foto/PDF)</div>
-          <div class="fileRow">
-            <input id="formFile" type="file" accept="image/*,application/pdf">
-            <button type="button" id="btnPreviewForm" class="queueIconBtn" style="display:none;" title="Lihat" onclick="previewFile('form')">👁️</button>
-          </div>
-        </div>
-        <div class="specGroup">
-          <div class="specLabel">Foto Property</div>
-          <div class="fileRow">
-            <input id="propertyFile" type="file" accept="image/*">
-            <button type="button" id="btnPreviewProperty" class="queueIconBtn" style="display:none;" title="Lihat" onclick="previewFile('property')">👁️</button>
-          </div>
-        </div>
-      </div>
-      <div class="specGroup" id="judulGroup" style="margin-top:16px;">
-        <div class="specLabel">Judul (opsional)</div>
-        <input id="judul" type="text" placeholder="Judul untuk nama folder (kosongkan untuk nama otomatis)">
-      </div>
-      <div class="specGroup" style="margin-top:16px;">
-        <div class="specLabel">Narasi (opsional)</div>
-        <textarea id="narasi" placeholder="Narasi listing (opsional). Kalau sudah ada kontak agen, dibiarkan. Kalau belum, Hubungi + hashtag ditambah otomatis. Bisa diedit."></textarea>
+      <div id="listingCards"></div>
+      <div class="formActions">
+        <button type="button" id="btnAddCard" class="btnSecondary" onclick="addListingCard()">+ Tambah Listing Lagi</button>
       </div>
       <div class="formActions">
         <button type="button" id="btnCancelEdit" class="btnSecondary" onclick="cancelEdit()" style="display:none;">BATAL EDIT</button>
@@ -135,7 +115,8 @@
   }
 
   // Same narrative-footer logic as inputlisting.html, ported client-side so
-  // the "Hubungi" + hashtag block gets prefilled/completed the same way.
+  // the "Hubungi" + hashtag block gets appended at submit time the same way
+  // (no visible prefill — the box stays as the agent left it until then).
   function formatPhoneDisplay(hp) {
     const d = safeStr(hp).replace(/\D/g, "");
     if (!d) return "";
@@ -195,19 +176,6 @@
     return (raw + "\n\n" + canonicalAgentFooter(agent).trim()).replace(/\n{3,}/g, "\n\n").trim();
   }
 
-  // Used for prefill: an empty box always starts from the footer template;
-  // non-empty text goes through the smart-completion above instead.
-  function narasiWithFooter(text, agent) {
-    const raw = safeStr(text).trim();
-    if (!raw) return canonicalAgentFooter(agent).trim();
-    return completeOwnNarrative(raw, agent);
-  }
-
-  function prefillNarasiIfEmpty() {
-    if (safeStr($("narasi").value).trim()) return;
-    $("narasi").value = narasiWithFooter("", currentAgent());
-  }
-
   function isLoggedIn() {
     return !!(getStoredAgentCode() && getStoredPin());
   }
@@ -246,7 +214,6 @@
         if (res && res.valid) {
           saveSession(code, pin, res.status, res.nama, res.hp);
           closeLogin();
-          prefillNarasiIfEmpty();
           loadMine();
         } else {
           alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
@@ -260,29 +227,34 @@
       });
   }
 
-  let currentPreview = { form: null, property: null };
-
-  function updatePreviewButton(which) {
-    const btn = $(which === "form" ? "btnPreviewForm" : "btnPreviewProperty");
-    btn.style.display = currentPreview[which] ? "inline-flex" : "none";
+  function updatePreviewButton(card, which) {
+    const btn = card.querySelector(which === "form" ? ".btnPreviewForm" : ".btnPreviewProperty");
+    btn.style.display = card._preview[which] ? "inline-flex" : "none";
   }
 
-  function setLocalPreview(which, file) {
-    const prev = currentPreview[which];
+  function setLocalPreview(card, which, file) {
+    const prev = card._preview[which];
     if (prev && prev.kind === "local" && prev.url) URL.revokeObjectURL(prev.url);
-    currentPreview[which] = file ? { kind: "local", url: URL.createObjectURL(file), mime: file.type } : null;
-    updatePreviewButton(which);
+    card._preview[which] = file ? { kind: "local", url: URL.createObjectURL(file), mime: file.type } : null;
+    updatePreviewButton(card, which);
   }
 
-  function setRemotePreview(which, fileId, mime) {
-    const prev = currentPreview[which];
+  function setRemotePreview(card, which, fileId, mime) {
+    const prev = card._preview[which];
     if (prev && prev.kind === "local" && prev.url) URL.revokeObjectURL(prev.url);
-    currentPreview[which] = fileId ? { kind: "remote", fileId: fileId, mime: mime } : null;
-    updatePreviewButton(which);
+    card._preview[which] = fileId ? { kind: "remote", fileId: fileId, mime: mime } : null;
+    updatePreviewButton(card, which);
   }
 
-  function previewFile(which) {
-    const p = currentPreview[which];
+  function revokeCardPreviews(card) {
+    ["form", "property"].forEach(function(w) {
+      const p = card._preview && card._preview[w];
+      if (p && p.kind === "local" && p.url) URL.revokeObjectURL(p.url);
+    });
+  }
+
+  function previewCardFile(card, which) {
+    const p = card._preview[which];
     if (!p) return;
     const isPdf = String(p.mime || "").indexOf("pdf") >= 0;
     const body = $("previewBody");
@@ -301,6 +273,13 @@
     $("previewBody").innerHTML = "";
   }
 
+  function previewNarasi(fileId) {
+    const row = myRows.find(function(r) { return r.fileId === fileId; });
+    if (!row) return;
+    $("previewBody").innerHTML = '<div class="narasiPreviewText">' + escapeHtml(row.narasi || "") + '</div>';
+    $("previewModal").style.display = "block";
+  }
+
   function openPreview(fileId, kind) {
     const body = $("previewBody");
     if (kind === "pdf") {
@@ -311,8 +290,70 @@
     $("previewModal").style.display = "block";
   }
 
-  $("formFile").addEventListener("change", function() { setLocalPreview("form", this.files[0] || null); });
-  $("propertyFile").addEventListener("change", function() { setLocalPreview("property", this.files[0] || null); });
+  function refreshRemoveButtons() {
+    const cards = document.querySelectorAll("#listingCards .listingCard");
+    cards.forEach(function(card) {
+      const btn = card.querySelector(".btnRemoveCard");
+      if (btn) btn.style.display = cards.length > 1 ? "block" : "none";
+    });
+  }
+
+  function addListingCard() {
+    const wrap = $("listingCards");
+    const card = document.createElement("div");
+    card.className = "listingCard";
+    card._preview = { form: null, property: null };
+    card.innerHTML =
+      '<div class="listingCardHead">'
+      + '<div class="listingCardTitle">Listing</div>'
+      + '<button type="button" class="btnDanger btnRemoveCard">Hapus</button>'
+      + '</div>'
+      + '<div class="filterRow">'
+      + '<div class="specGroup"><div class="specLabel">Foto Form Fisik (foto/PDF)</div>'
+      + '<div class="fileRow"><input class="formFileInput" type="file" accept="image/*,application/pdf">'
+      + '<button type="button" class="queueIconBtn btnPreviewForm" style="display:none;" title="Lihat">👁️</button></div></div>'
+      + '<div class="specGroup"><div class="specLabel">Foto Property</div>'
+      + '<div class="fileRow"><input class="propertyFileInput" type="file" accept="image/*">'
+      + '<button type="button" class="queueIconBtn btnPreviewProperty" style="display:none;" title="Lihat">👁️</button></div></div>'
+      + '</div>'
+      + '<div class="specGroup judulGroup" style="margin-top:16px;">'
+      + '<div class="specLabel">Judul (opsional)</div>'
+      + '<input class="judulInput" type="text" placeholder="Judul untuk nama folder (kosongkan untuk nama otomatis)"></div>'
+      + '<div class="specGroup" style="margin-top:16px;">'
+      + '<div class="specLabel">Narasi (opsional)</div>'
+      + '<textarea class="narasiInput" placeholder="Narasi listing (opsional). Kalau sudah ada kontak agen, dibiarkan. Kalau belum, Hubungi + hashtag ditambah otomatis. Bisa diedit."></textarea></div>';
+
+    card.querySelector(".formFileInput").addEventListener("change", function() {
+      setLocalPreview(card, "form", this.files[0] || null);
+    });
+    card.querySelector(".propertyFileInput").addEventListener("change", function() {
+      setLocalPreview(card, "property", this.files[0] || null);
+    });
+    card.querySelector(".btnPreviewForm").addEventListener("click", function() { previewCardFile(card, "form"); });
+    card.querySelector(".btnPreviewProperty").addEventListener("click", function() { previewCardFile(card, "property"); });
+    card.querySelector(".btnRemoveCard").addEventListener("click", function() {
+      const all = document.querySelectorAll("#listingCards .listingCard");
+      if (all.length <= 1) return;
+      revokeCardPreviews(card);
+      card.remove();
+      refreshRemoveButtons();
+    });
+
+    wrap.appendChild(card);
+    refreshRemoveButtons();
+    return card;
+  }
+
+  function resetListingCards() {
+    document.querySelectorAll("#listingCards .listingCard").forEach(revokeCardPreviews);
+    $("listingCards").innerHTML = "";
+    $("btnAddCard").style.display = "";
+    addListingCard();
+  }
+
+  function ensureFirstCard() {
+    if (!document.querySelector("#listingCards .listingCard")) addListingCard();
+  }
 
   function statusPillHtml(status) {
     const s = safeStr(status);
@@ -325,16 +366,18 @@
     const row = myRows.find(function(r) { return r.fileId === fileId; });
     if (!row) return;
     editingFileId = fileId;
+    document.querySelectorAll("#listingCards .listingCard").forEach(revokeCardPreviews);
+    $("listingCards").innerHTML = "";
+    const card = addListingCard();
+    card.querySelector(".btnRemoveCard").style.display = "none";
+    card.querySelector(".judulGroup").style.display = "none";
+    card.querySelector(".narasiInput").value = row.narasi || "";
+    setRemotePreview(card, "form", row.formFileId, row.formMime);
+    setRemotePreview(card, "property", row.propertyFileId, "image/jpeg");
+    $("btnAddCard").style.display = "none";
     $("formTitle").textContent = "Edit Submission (" + row.tanggal + ")";
     $("editHint").style.display = "block";
     $("btnCancelEdit").style.display = "block";
-    $("judulGroup").style.display = "none";
-    $("judul").value = "";
-    $("narasi").value = narasiWithFooter(row.narasi || "", currentAgent());
-    $("formFile").value = "";
-    $("propertyFile").value = "";
-    setRemotePreview("form", row.formFileId, row.formMime);
-    setRemotePreview("property", row.propertyFileId, "image/jpeg");
     $("submitStatus").className = "smallHint";
     $("submitStatus").textContent = "";
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -345,14 +388,7 @@
     $("formTitle").textContent = "Kirim Form Listing";
     $("editHint").style.display = "none";
     $("btnCancelEdit").style.display = "none";
-    $("judulGroup").style.display = "";
-    $("judul").value = "";
-    $("narasi").value = "";
-    prefillNarasiIfEmpty();
-    $("formFile").value = "";
-    $("propertyFile").value = "";
-    setLocalPreview("form", null);
-    setLocalPreview("property", null);
+    resetListingCards();
   }
 
   function renderHistory() {
@@ -369,7 +405,7 @@
       table += '<tr>'
         + '<td>' + escapeHtml(r.tanggal) + '</td>'
         + '<td>' + statusPillHtml(r.status) + '</td>'
-        + '<td class="queueNarasiCell" title="' + escapeHtml(r.narasi) + '">' + (r.narasi ? escapeHtml(r.narasi) : "—") + '</td>'
+        + '<td>' + (r.narasi ? '<button type="button" class="queueIconBtn" title="Lihat narasi" onclick="previewNarasi(\'' + escapeHtml(r.fileId) + '\')">📃</button>' : "—") + '</td>'
         + '<td>' + (r.formFileId ? '<button type="button" class="queueIconBtn" title="Lihat form fisik" onclick="openPreview(\'' + escapeHtml(r.formFileId) + '\', \'' + (isPdf ? "pdf" : "image") + '\')">' + (isPdf ? "📄" : "🖼️") + '</button>' : "—") + '</td>'
         + '<td>' + (r.propertyFileId ? '<button type="button" class="queueIconBtn" title="Lihat foto property" onclick="openPreview(\'' + escapeHtml(r.propertyFileId) + '\', \'image\')">📷</button>' : "—") + '</td>'
         + '<td>' + (r.feedback ? escapeHtml(r.feedback) : "—") + '</td>'
@@ -398,68 +434,98 @@
       });
   }
 
+  function collectCardPayload(card) {
+    const formFile = card.querySelector(".formFileInput").files[0] || null;
+    const propertyFile = card.querySelector(".propertyFileInput").files[0] || null;
+    const judul = safeStr(card.querySelector(".judulInput").value).trim();
+    const narasi = completeOwnNarrative(card.querySelector(".narasiInput").value, currentAgent());
+
+    if (!editingFileId) {
+      if (!formFile) throw new Error("Upload Foto Form Fisik (foto atau PDF).");
+      if (!propertyFile) throw new Error("Upload Foto Property.");
+    } else if (!formFile && !propertyFile && !narasi) {
+      throw new Error("Tidak ada perubahan untuk disimpan.");
+    }
+
+    return { formFile: formFile, propertyFile: propertyFile, judul: judul, narasi: narasi };
+  }
+
+  function runSubmitCard(payload) {
+    const fd = new FormData();
+    fd.append("agentCode", getStoredAgentCode());
+    fd.append("pin", getStoredPin());
+    fd.append("judul", payload.judul);
+    fd.append("narasi", payload.narasi);
+    if (payload.formFile) fd.append("form", payload.formFile, payload.formFile.name);
+    if (payload.propertyFile) fd.append("property", payload.propertyFile, payload.propertyFile.name);
+    if (editingFileId) fd.append("fileId", editingFileId);
+    return hepiApi(editingFileId ? "/api/form-listing/edit" : "/api/form-listing/submit", { formData: fd });
+  }
+
   function submitForm() {
     if (!isLoggedIn()) {
       openLogin();
       return;
     }
 
-    const formFile = $("formFile").files[0] || null;
-    const propertyFile = $("propertyFile").files[0] || null;
-    const narasi = completeOwnNarrative($("narasi").value, currentAgent());
-
-    if (!editingFileId) {
-      if (!formFile) { alert("Upload Foto Form Fisik (foto atau PDF)."); return; }
-      if (!propertyFile) { alert("Upload Foto Property."); return; }
-    } else if (!formFile && !propertyFile && !narasi) {
-      alert("Tidak ada perubahan untuk disimpan.");
+    const cards = Array.prototype.slice.call(document.querySelectorAll("#listingCards .listingCard"));
+    let payloads;
+    try {
+      payloads = cards.map(collectCardPayload);
+    } catch (err) {
+      alert(err && err.message ? err.message : String(err));
       return;
     }
 
-    const fd = new FormData();
-    fd.append("agentCode", getStoredAgentCode());
-    fd.append("pin", getStoredPin());
-    fd.append("judul", safeStr($("judul").value).trim());
-    fd.append("narasi", narasi);
-    if (formFile) fd.append("form", formFile, formFile.name);
-    if (propertyFile) fd.append("property", propertyFile, propertyFile.name);
-    if (editingFileId) fd.append("fileId", editingFileId);
-
     const btn = $("btnSubmitForm");
     const original = btn.innerHTML;
-    btn.innerHTML = "Mengirim...";
     btn.disabled = true;
+    $("btnAddCard").disabled = true;
     $("submitStatus").className = "smallHint";
     $("submitStatus").textContent = "";
 
-    hepiApi(editingFileId ? "/api/form-listing/edit" : "/api/form-listing/submit", { formData: fd })
-      .then(function(res) {
+    let i = 0;
+    let savedCount = 0;
+
+    function next() {
+      if (i >= payloads.length) {
         btn.innerHTML = original;
         btn.disabled = false;
-        if (res && res.ok) {
-          $("submitStatus").className = "successBanner";
-          $("submitStatus").textContent = editingFileId ? "Perubahan tersimpan, menunggu review lagi." : "Form listing terkirim, menunggu review adminkantor.";
-          cancelEdit();
-          loadMine();
-          return;
-        }
-        $("submitStatus").textContent = "Gagal mengirim.";
-      })
-      .catch(function(err) {
-        btn.innerHTML = original;
-        btn.disabled = false;
-        const msg = err && err.message ? err.message : String(err);
-        $("submitStatus").textContent = msg;
-        if (/login|salah|ngawur/i.test(msg)) openLogin();
-      });
+        $("btnAddCard").disabled = false;
+        $("submitStatus").className = "successBanner";
+        $("submitStatus").textContent = editingFileId
+          ? "Perubahan tersimpan, menunggu review lagi."
+          : (payloads.length > 1 ? savedCount + " listing terkirim, menunggu review adminkantor." : "Form listing terkirim, menunggu review adminkantor.");
+        cancelEdit();
+        loadMine();
+        return;
+      }
+      btn.innerHTML = payloads.length > 1 ? "Menyimpan " + (i + 1) + "/" + payloads.length + "..." : "Mengirim...";
+      runSubmitCard(payloads[i])
+        .then(function(res) {
+          if (!res || !res.ok) throw new Error("Gagal menyimpan listing " + (i + 1) + ".");
+          savedCount += 1;
+          i += 1;
+          next();
+        })
+        .catch(function(err) {
+          btn.innerHTML = original;
+          btn.disabled = false;
+          $("btnAddCard").disabled = false;
+          const msg = err && err.message ? err.message : String(err);
+          $("submitStatus").className = "smallHint";
+          const prefix = savedCount ? savedCount + " listing tersimpan. " : "";
+          $("submitStatus").textContent = prefix + "Listing " + (i + 1) + " gagal: " + msg;
+          if (/login|salah|ngawur/i.test(msg)) openLogin();
+        });
+    }
+
+    next();
   }
 
-  if (isLoggedIn()) {
-    prefillNarasiIfEmpty();
-    loadMine();
-  } else {
-    openLogin();
-  }
+  ensureFirstCard();
+  if (isLoggedIn()) loadMine();
+  else openLogin();
 </script>
 </body>
 </html>

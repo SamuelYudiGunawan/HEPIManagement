@@ -185,6 +185,13 @@
     $("previewBody").innerHTML = "";
   }
 
+  function previewNarasi(fileId) {
+    const row = queueRows.find(function(r) { return r.fileId === fileId; });
+    if (!row) return;
+    $("previewBody").innerHTML = '<div class="narasiPreviewText">' + escapeHtml(row.narasi || "") + '</div>';
+    $("previewModal").style.display = "block";
+  }
+
   function openFeedbackModal(fileId) {
     const row = queueRows.find(function(r) { return r.fileId === fileId; });
     feedbackTargetId = fileId;
@@ -238,7 +245,7 @@
     return '<tr>'
       + '<td><b>' + escapeHtml(r.kodeAgen) + '</b></td>'
       + '<td>' + escapeHtml(r.tanggal) + '</td>'
-      + '<td class="queueNarasiCell" title="' + escapeHtml(r.narasi) + '">' + (r.narasi ? escapeHtml(r.narasi) : "—") + '</td>'
+      + '<td>' + (r.narasi ? '<button type="button" class="queueIconBtn" title="Lihat narasi" onclick="previewNarasi(\'' + escapeHtml(r.fileId) + '\')">📃</button>' : "—") + '</td>'
       + '<td>' + formIconHtml(r) + '</td>'
       + '<td>' + propertyIconHtml(r) + '</td>'
       + '<td>' + feedbackIconHtml(r) + '</td>'
