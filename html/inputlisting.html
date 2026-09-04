@@ -36,21 +36,16 @@
     </div>
   </div>
 
-  <div class="header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 18px;">
-    <div style="flex: 1; text-align: center; font-size: 42px; font-weight: 900;">
-      INPUT LISTING
-    </div>
-    <button onclick="doLogout()" style="width: auto; padding: 8px 16px; font-size: 24px; background: #d32f2f; margin-left: 16px; border-radius: 12px; min-height: auto;">
-      Logout
-    </button>
+  <div class="siteNav">
+    <nav class="appNav">
+      <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+      <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+      <a class="appNavLink" href="/scores" target="_top">Skor</a>
+      <a class="appNavLink" href="/history" target="_top">History</a>
+      <a class="appNavLink" href="/form-listing" target="_top">Tambah Listing</a>
+    </nav>
+    <button class="headerLogout" onclick="doLogout()">Logout</button>
   </div>
-
-  <nav class="appNav">
-    <a class="appNavLink" href="/" target="_top">Cari Listing</a>
-    <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
-    <a class="appNavLink" href="/scores" target="_top">Skor</a>
-    <a class="appNavLink" href="/history" target="_top">History</a>
-  </nav>
 
   <div class="pageWrap">
     <div id="deniedBox" class="filterBox" style="display:none;">

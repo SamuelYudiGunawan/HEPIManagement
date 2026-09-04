@@ -25,57 +25,50 @@
   .filterRow, .specGroup, .specPair, .cselect, input, select, textarea, .cselect-btn {
     min-width: 0;
   }
-  .header { background: #0d47a1; color: white; padding: 24px; font-size: 58px; font-weight: bold; text-align: center; }
-  .appNav {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    padding: 12px 16px;
-    background: #1565c0;
-  }
-  .appNavLink {
+  .siteNav {
     display: flex;
     align-items: center;
-    justify-content: center;
-    min-height: 48px;
-    padding: 10px 6px;
-    border-radius: 14px;
+    flex-wrap: wrap;
+    gap: 14px 20px;
+    background: #fff;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e6eaf0;
+  }
+  .appNav {
+    display: contents;
+  }
+  .appNavLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 2px 0;
     text-decoration: none;
     font-size: 16px;
     font-weight: 800;
-    color: #fff;
-    background: rgba(255,255,255,0.12);
-    text-align: center;
+    color: #37474f;
+    background: transparent;
+    border-bottom: 3px solid transparent;
+    line-height: 1.15;
   }
   .appNavLink.active {
-    background: #fff;
-    color: #0d47a1;
+    background: transparent;
+    color: #1565c0;
+    border-bottom-color: #1565c0;
   }
-  .appNavLink { line-height: 1.15; }
 
-  .headerBar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 18px;
-  }
-  .pageTitle {
-    flex: 1;
-    text-align: center;
-    font-size: 42px;
-    font-weight: 900;
-  }
   .headerLogout {
     width: auto !important;
-    padding: 8px 16px !important;
-    font-size: 24px !important;
-    background: #d32f2f !important;
-    margin-left: 16px;
-    border-radius: 12px !important;
-    min-height: auto !important;
+    padding: 4px 0 !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    background: transparent !important;
+    color: #c62828 !important;
+    border: none !important;
     box-shadow: none !important;
+    min-height: auto !important;
+    margin-left: auto !important;
   }
-  .headerLogout:hover { background: #b71c1c !important; }
+  .headerLogout:hover { background: transparent !important; opacity: .7; }
 
   .textSizeBar {
     display: flex;
@@ -596,15 +589,13 @@
 
   /* ===== Mobile tuning ===== */
   @media screen and (max-width:768px){
-    .appNav { padding: 8px 10px; gap: 6px; }
     .appNavLink {
       font-size: 13px;
-      min-height: 40px;
-      padding: 6px 3px;
+      min-height: 36px;
+      padding: 4px 0;
     }
-    .headerBar { padding: 10px 12px; }
-    .pageTitle { font-size: 20px; }
-    .headerLogout { font-size: 14px !important; padding: 6px 10px !important; margin-left: 8px; }
+    .siteNav { padding: 10px 12px; gap: 10px 14px; }
+    .headerLogout { font-size: 14px !important; padding: 4px 0 !important; }
     .textSizeBar { padding: 8px 10px; gap: 6px; }
     .textSizeBtn { min-height: 40px !important; padding: 8px 8px !important; font-size: 15px !important; }
 
@@ -789,13 +780,8 @@
      ========================= */
   @media (min-width: 1024px) {
     /* --- Header --- */
-    .header {
-      font-size: 28px !important;
-      padding: 14px 24px !important;
-    }
-
-    .appNav { padding: 8px 24px; gap: 10px; }
-    .appNavLink { font-size: 14px; min-height: 36px; border-radius: 10px; }
+    .siteNav { padding: 8px 24px; gap: 10px 16px; }
+    .appNavLink { font-size: 14px; min-height: 32px; }
 
     /* --- Filters --- */
     .filters {
@@ -1017,7 +1003,6 @@
   }
 
   html[data-text-size="large"] .appNavLink { font-size: 18px; min-height: 48px; }
-  html[data-text-size="large"] .pageTitle { font-size: 32px; }
   html[data-text-size="large"] .filterTitle { font-size: 28px; }
   html[data-text-size="large"] .specLabel { font-size: 22px; }
   html[data-text-size="large"] .stats { font-size: 24px; }
@@ -1026,7 +1011,6 @@
   html[data-text-size="large"] .textSizeBtn { font-size: 18px !important; min-height: 48px !important; }
 
   html[data-text-size="xlarge"] .appNavLink { font-size: 20px; min-height: 52px; }
-  html[data-text-size="xlarge"] .pageTitle { font-size: 36px; }
   html[data-text-size="xlarge"] .filterTitle { font-size: 32px; }
   html[data-text-size="xlarge"] .specLabel { font-size: 26px; }
   html[data-text-size="xlarge"] .stats { font-size: 28px; }
@@ -1036,7 +1020,6 @@
 
   @media screen and (max-width:768px){
     html[data-text-size="large"] .appNavLink { font-size: 14px; min-height: 44px; }
-    html[data-text-size="large"] .pageTitle { font-size: 24px; }
     html[data-text-size="large"] .filterTitle { font-size: 24px; }
     html[data-text-size="large"] .specLabel { font-size: 22px; }
     html[data-text-size="large"] input,
@@ -1062,7 +1045,6 @@
     html[data-text-size="large"] .textSizeLabel { font-size: 13px; }
 
     html[data-text-size="xlarge"] .appNavLink { font-size: 16px; min-height: 48px; }
-    html[data-text-size="xlarge"] .pageTitle { font-size: 26px; }
     html[data-text-size="xlarge"] .filterTitle { font-size: 26px; }
     html[data-text-size="xlarge"] .specLabel { font-size: 26px; }
     html[data-text-size="xlarge"] input,
@@ -1143,7 +1125,6 @@
 
   @media (min-width: 1024px) {
     html[data-text-size="large"] .appNavLink { font-size: 16px; min-height: 40px; }
-    html[data-text-size="large"] .pageTitle { font-size: 28px; }
     html[data-text-size="large"] .filterTitle { font-size: 20px; }
     html[data-text-size="large"] .specLabel { font-size: 16px; }
     html[data-text-size="large"] input,
@@ -1160,7 +1141,6 @@
     html[data-text-size="large"] body.detailMode .narrativeBox { font-size: 16px; }
 
     html[data-text-size="xlarge"] .appNavLink { font-size: 18px; min-height: 44px; }
-    html[data-text-size="xlarge"] .pageTitle { font-size: 32px; }
     html[data-text-size="xlarge"] .filterTitle { font-size: 22px; }
     html[data-text-size="xlarge"] .specLabel { font-size: 18px; }
     html[data-text-size="xlarge"] input,
@@ -1221,17 +1201,16 @@
     </div>
   </div>
 
-  <div class="header headerBar">
-    <div class="pageTitle">HEPI PROPERTY LISTINGS</div>
+  <div class="siteNav">
+    <nav class="appNav">
+      <a class="appNavLink active" href="/" target="_top">Cari Listing</a>
+      <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+      <a class="appNavLink" href="/scores" target="_top">Skor</a>
+      <a class="appNavLink" href="/history" target="_top">History</a>
+      <a class="appNavLink" href="/form-listing" target="_top">Tambah Listing</a>
+    </nav>
     <button class="headerLogout" onclick="doLogout()">Logout</button>
   </div>
-
-  <nav class="appNav">
-    <a class="appNavLink active" href="/" target="_top">Cari Listing</a>
-    <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
-    <a class="appNavLink" href="/scores" target="_top">Skor</a>
-    <a class="appNavLink" href="/history" target="_top">History</a>
-  </nav>
   <div class="textSizeBar" role="group" aria-label="Ukuran teks">
     <span class="textSizeLabel">Ukuran Font</span>
     <button type="button" class="textSizeBtn" data-text-size-btn="normal">N</button>

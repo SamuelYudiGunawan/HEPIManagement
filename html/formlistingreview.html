@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>Review Form Listing</title>
+  <link rel="stylesheet" href="/styles-v2.css">
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/textsize.js"></script>
+  <script>
+    try {
+      var _hepiText = localStorage.getItem("hepi_textSize");
+      if (_hepiText === "large" || _hepiText === "xlarge") {
+        document.documentElement.setAttribute("data-text-size", _hepiText);
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="loginModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>VERIFIKASI AKSES AGEN</h2>
+      <div class="sold-text" style="margin-bottom:10px;">Login admin/adminkantor untuk review Form Listing</div>
+      <div class="loginFields">
+        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
+        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
+        <div class="smallHint">Kode agen & PIN disimpan di browser ini.</div>
+      </div>
+      <div class="sold-buttons">
+        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="previewModal" class="previewModal" onclick="if (event.target === this) closePreview();">
+    <div class="previewBox">
+      <button type="button" class="previewClose" onclick="closePreview()">Tutup ✕</button>
+      <div id="previewBody" class="previewBody"></div>
+    </div>
+  </div>
+
+  <div id="feedbackModal" class="sold-modal">
+    <div class="sold-box" style="text-align:left;">
+      <h2 style="text-align:center;">Feedback</h2>
+      <textarea id="feedbackText" placeholder="Tulis feedback kalau belum lolos..."></textarea>
+      <div class="sold-buttons" style="margin-top:14px;">
+        <button type="button" class="btnSecondary" onclick="closeFeedbackModal()">Batal</button>
+        <button type="button" onclick="submitFeedbackModal()">Kirim</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="siteNav">
+    <nav class="appNav">
+      <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+      <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+      <a class="appNavLink" href="/scores" target="_top">Skor</a>
+      <a class="appNavLink" href="/history" target="_top">History</a>
+      <a class="appNavLink" href="/form-listing" target="_top">Tambah Listing</a>
+    </nav>
+    <button class="headerLogout" onclick="doLogout()">Logout</button>
+  </div>
+
+  <div class="pageWrap">
+    <div id="deniedBox" class="filterBox" style="display:none;">
+      <div class="emptyState">Hanya admin atau adminkantor yang bisa akses halaman Review Form Listing.</div>
+    </div>
+
+    <div id="queueBox" class="filterBox" style="display:none;">
+      <div class="filterTitle">Antrian Form Listing</div>
+      <div id="queueArea"></div>
+    </div>
+  </div>
+
+<script>
+  const SCRIPT_URL = "/";
+  let queueRows = [];
+
+  function $(id) { return document.getElementById(id); }
+  function safeStr(v) { return String(v == null ? "" : v); }
+  function escapeHtml(str) {
+    return safeStr(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getStoredAgentCode() { return localStorage.getItem("hepi_agentCode") || ""; }
+  function getStoredPin() { return localStorage.getItem("hepi_pin") || ""; }
+  function getStoredStatus() { return (localStorage.getItem("hepi_status") || "").toLowerCase().trim(); }
+
+  function saveSession(agentCode, pin, status, nama) {
+    try {
+      localStorage.setItem("hepi_agentCode", safeStr(agentCode).toUpperCase().trim());
+      localStorage.setItem("hepi_pin", safeStr(pin).trim());
+      localStorage.setItem("hepi_status", safeStr(status).toLowerCase().trim());
+      localStorage.setItem("hepi_nama", safeStr(nama).trim());
+    } catch (e) {}
+  }
+
+  function isLoggedIn() { return !!(getStoredAgentCode() && getStoredPin()); }
+  function isReviewer() {
+    const s = getStoredStatus();
+    return s === "admin" || s === "adminkantor";
+  }
+
+  function openLogin() { $("loginModal").style.display = "block"; }
+  function closeLogin() { $("loginModal").style.display = "none"; }
+
+  function doLogout() {
+    try {
+      localStorage.removeItem("hepi_agentCode");
+      localStorage.removeItem("hepi_pin");
+      localStorage.removeItem("hepi_status");
+      localStorage.removeItem("hepi_nama");
+    } catch (e) {}
+    window.top.location.href = "/";
+  }
+
+  function submitLogin() {
+    const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
+    const pin = safeStr($("loginPin").value).trim();
+    if (!code || !pin) {
+      alert("Hayoo isi Kode Agen dan PIN Anda!");
+      return;
+    }
+
+    const btn = $("btnSubmitLogin");
+    const original = btn.innerHTML;
+    btn.innerHTML = "Memeriksa...";
+    btn.disabled = true;
+
+    hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
+      .then(function(res) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        if (res && res.valid) {
+          saveSession(code, pin, res.status, res.nama);
+          closeLogin();
+          applyAccess();
+        } else {
+          alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
+          $("loginPin").value = "";
+        }
+      })
+      .catch(function(err) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
+      });
+  }
+
+  function showDenied() {
+    $("deniedBox").style.display = "block";
+    $("queueBox").style.display = "none";
+  }
+
+  function showQueue() {
+    $("deniedBox").style.display = "none";
+    $("queueBox").style.display = "block";
+  }
+
+  let doneVisible = false;
+  let feedbackTargetId = null;
+
+  function openPreview(fileId, kind) {
+    const body = $("previewBody");
+    if (kind === "pdf") {
+      body.innerHTML = '<iframe src="https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/preview"></iframe>';
+    } else {
+      body.innerHTML = '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w1600" alt="preview">';
+    }
+    $("previewModal").style.display = "block";
+  }
+
+  function closePreview() {
+    $("previewModal").style.display = "none";
+    $("previewBody").innerHTML = "";
+  }
+
+  function openFeedbackModal(fileId) {
+    const row = queueRows.find(function(r) { return r.fileId === fileId; });
+    feedbackTargetId = fileId;
+    $("feedbackText").value = (row && row.feedback) || "";
+    $("feedbackModal").style.display = "block";
+  }
+
+  function closeFeedbackModal() {
+    $("feedbackModal").style.display = "none";
+    feedbackTargetId = null;
+  }
+
+  function submitFeedbackModal() {
+    const text = safeStr($("feedbackText").value).trim();
+    if (!text) {
+      alert("Isi feedback dulu sebelum dikirim.");
+      return;
+    }
+    sendFeedback(feedbackTargetId, text);
+    closeFeedbackModal();
+  }
+
+  function formIconHtml(r) {
+    const isPdf = r.formMime === "application/pdf";
+    return '<button type="button" class="queueIconBtn" title="Lihat form fisik' + (isPdf ? " (PDF)" : "") + '" '
+      + 'onclick="openPreview(\'' + escapeHtml(r.formFileId) + '\', \'' + (isPdf ? "pdf" : "image") + '\')">'
+      + (isPdf ? "📄" : "🖼️") + '</button>';
+  }
+
+  function propertyIconHtml(r) {
+    return '<button type="button" class="queueIconBtn" title="Lihat foto property" '
+      + 'onclick="openPreview(\'' + escapeHtml(r.propertyFileId) + '\', \'image\')">📷</button>';
+  }
+
+  function feedbackIconHtml(r) {
+    return '<button type="button" class="queueIconBtn" title="' + (r.feedback ? "Lihat/ubah feedback" : "Tulis feedback") + '" '
+      + 'onclick="openFeedbackModal(\'' + escapeHtml(r.fileId) + '\')">' + (r.feedback ? "📝" : "💬") + '</button>';
+  }
+
+  function doneIconHtml(r) {
+    if (r.status === "selesai") return '<span class="queueIconBtn queueIconBtnDone" title="Selesai">✔️</span>';
+    return '<button type="button" class="queueIconBtn" title="Tandai selesai" onclick="markDone(\'' + escapeHtml(r.fileId) + '\')">✅</button>';
+  }
+
+  function folderIconHtml(r) {
+    if (!r.folderLink) return "";
+    return '<a class="queueIconBtn" title="Lihat folder di Drive" href="' + escapeHtml(r.folderLink) + '" target="_blank">📁</a>';
+  }
+
+  function rowHtml(r) {
+    const title = r.narasi ? ' title="Narasi: ' + escapeHtml(r.narasi) + '"' : "";
+    return '<tr>'
+      + '<td' + title + '><b>' + escapeHtml(r.kodeAgen) + '</b></td>'
+      + '<td>' + escapeHtml(r.tanggal) + '</td>'
+      + '<td>' + formIconHtml(r) + '</td>'
+      + '<td>' + propertyIconHtml(r) + '</td>'
+      + '<td>' + feedbackIconHtml(r) + '</td>'
+      + '<td>' + doneIconHtml(r) + '</td>'
+      + '<td>' + folderIconHtml(r) + '</td>'
+      + '</tr>';
+  }
+
+  function tableHtml(rows) {
+    return '<table class="scoreTable queueTable"><thead><tr>'
+      + '<th>Kode Agen</th><th>Tanggal</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Selesai</th><th>Folder</th>'
+      + '</tr></thead><tbody>' + rows.map(rowHtml).join("") + '</tbody></table>';
+  }
+
+  function toggleDone() {
+    doneVisible = !doneVisible;
+    renderQueue();
+  }
+
+  function renderQueue() {
+    if (!queueRows.length) {
+      $("queueArea").innerHTML = '<div class="emptyState">Belum ada submission.</div>';
+      return;
+    }
+    const active = queueRows.filter(function(r) { return r.status !== "selesai"; });
+    const done = queueRows.filter(function(r) { return r.status === "selesai"; });
+
+    let html = '<div class="scoreTableWrap">' + (active.length ? tableHtml(active) : '<div class="emptyState">Tidak ada yang perlu direview.</div>') + '</div>';
+
+    if (done.length) {
+      html += '<button type="button" class="btnSecondary" style="margin-top:14px;" onclick="toggleDone()">'
+        + (doneVisible ? "▾ Sembunyikan" : "▸ Tampilkan") + ' ' + done.length + ' Selesai</button>';
+      if (doneVisible) {
+        html += '<div class="scoreTableWrap" style="margin-top:10px;">' + tableHtml(done) + '</div>';
+      }
+    }
+    $("queueArea").innerHTML = html;
+  }
+
+  function loadQueue() {
+    showQueue();
+    $("queueArea").innerHTML = '<div class="emptyState">Memuat...</div>';
+    hepiApi("/api/form-listing/queue", { body: { agentCode: getStoredAgentCode(), pin: getStoredPin() } })
+      .then(function(res) {
+        queueRows = (res && res.rows) || [];
+        renderQueue();
+      })
+      .catch(function(err) {
+        const msg = err && err.message ? err.message : String(err);
+        $("queueArea").innerHTML = '<div class="emptyState">' + escapeHtml(msg) + '</div>';
+        if (/admin|akses/i.test(msg)) showDenied();
+        if (/login|salah|ngawur/i.test(msg)) openLogin();
+      });
+  }
+
+  function sendFeedback(fileId, feedbackText) {
+    hepiApi("/api/form-listing/feedback", { body: { agentCode: getStoredAgentCode(), pin: getStoredPin(), fileId: fileId, feedback: feedbackText } })
+      .then(function() { loadQueue(); })
+      .catch(function(err) {
+        alert(err && err.message ? err.message : String(err));
+      });
+  }
+
+  function markDone(fileId) {
+    if (!confirm("Tandai submission ini sebagai selesai?")) return;
+    hepiApi("/api/form-listing/done", { body: { agentCode: getStoredAgentCode(), pin: getStoredPin(), fileId: fileId } })
+      .then(function() { loadQueue(); })
+      .catch(function(err) {
+        alert(err && err.message ? err.message : String(err));
+      });
+  }
+
+  function applyAccess() {
+    if (!isLoggedIn()) {
+      $("deniedBox").style.display = "none";
+      $("queueBox").style.display = "none";
+      openLogin();
+      return;
+    }
+    if (!isReviewer()) {
+      showDenied();
+      return;
+    }
+    loadQueue();
+  }
+
+  applyAccess();
+</script>
+</body>
+</html>

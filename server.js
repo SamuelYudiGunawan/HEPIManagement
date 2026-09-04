@@ -16,6 +16,7 @@ const agents = require("./lib/agents");
 const listings = require("./lib/listings");
 const activity = require("./lib/activity");
 const importer = require("./lib/import");
+const formListing = require("./lib/formListing");
 const STATIC_DIR = path.join(__dirname, "static");
 const HTML_DIR = path.join(__dirname, "html");
 const BODY_LIMIT = 32 * 1024 * 1024;
@@ -26,7 +27,9 @@ const PAGE_FILES = {
   "/scores": "scores.html",
   "/history": "history.html",
   "/closing": "closing.html",
-  "/inputlisting": "inputlisting.html"
+  "/inputlisting": "inputlisting.html",
+  "/form-listing": "formlisting.html",
+  "/form-listing-review": "formlistingreview.html"
 };
 
 function sendHtml(reply, filename) {
@@ -215,6 +218,48 @@ async function build() {
     const body = req.body || {};
     const { agentCode, pin } = authFrom(body);
     return activity.submitClosings(agentCode, pin, body);
+  });
+
+  app.post("/api/form-listing/submit", async (req) => {
+    credsOrThrow();
+    const { fields, files } = await readMultipart(req);
+    const { agentCode, pin } = authFrom(fields);
+    return formListing.submitOneForm(agentCode, pin, fields, files);
+  });
+
+  app.post("/api/form-listing/mine", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode, pin } = authFrom(body);
+    return formListing.listForAgent(agentCode, pin);
+  });
+
+  app.post("/api/form-listing/queue", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode, pin } = authFrom(body);
+    return formListing.listForAdmin(agentCode, pin);
+  });
+
+  app.post("/api/form-listing/feedback", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode, pin } = authFrom(body);
+    return formListing.giveFeedback(agentCode, pin, body.fileId, body.feedback);
+  });
+
+  app.post("/api/form-listing/done", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode, pin } = authFrom(body);
+    return formListing.markDone(agentCode, pin, body.fileId);
+  });
+
+  app.post("/api/form-listing/edit", async (req) => {
+    credsOrThrow();
+    const { fields, files } = await readMultipart(req);
+    const { agentCode, pin } = authFrom(fields);
+    return formListing.editSubmission(agentCode, pin, fields.fileId, fields, files);
   });
 
   app.get("/api/cron/import", async (req, reply) => {

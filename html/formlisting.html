@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>Form Listing</title>
+  <link rel="stylesheet" href="/styles-v2.css">
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/textsize.js"></script>
+  <script>
+    try {
+      var _hepiText = localStorage.getItem("hepi_textSize");
+      if (_hepiText === "large" || _hepiText === "xlarge") {
+        document.documentElement.setAttribute("data-text-size", _hepiText);
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="loginModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>VERIFIKASI AKSES AGEN</h2>
+      <div class="sold-text" style="margin-bottom:10px;">Login dulu untuk kirim Form Listing</div>
+      <div class="loginFields">
+        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
+        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
+        <div class="smallHint">Kode agen & PIN disimpan di browser ini.</div>
+      </div>
+      <div class="sold-buttons">
+        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="previewModal" class="previewModal" onclick="if (event.target === this) closePreview();">
+    <div class="previewBox">
+      <button type="button" class="previewClose" onclick="closePreview()">Tutup ✕</button>
+      <div id="previewBody" class="previewBody"></div>
+    </div>
+  </div>
+
+  <div class="siteNav">
+    <nav class="appNav">
+      <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+      <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+      <a class="appNavLink" href="/scores" target="_top">Skor</a>
+      <a class="appNavLink" href="/history" target="_top">History</a>
+      <a class="appNavLink active" href="/form-listing" target="_top">Tambah Listing</a>
+    </nav>
+    <button class="headerLogout" onclick="doLogout()">Logout</button>
+  </div>
+  <div class="textSizeBar" role="group" aria-label="Ukuran teks">
+    <span class="textSizeLabel">Ukuran Font</span>
+    <button type="button" class="textSizeBtn" data-text-size-btn="normal">N</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="large">L</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="xlarge">XL</button>
+  </div>
+
+  <div class="pageWrap">
+    <div class="filterBox">
+      <div class="filterTitle" id="formTitle">Kirim Form Listing</div>
+      <div id="editHint" class="smallHint" style="display:none;">Mode edit: kirim ulang file yang perlu diperbaiki saja, atau ganti narasi.</div>
+      <div class="filterRow">
+        <div class="specGroup">
+          <div class="specLabel">Foto Form Fisik (foto/PDF)</div>
+          <div class="fileRow">
+            <input id="formFile" type="file" accept="image/*,application/pdf">
+            <button type="button" id="btnPreviewForm" class="queueIconBtn" style="display:none;" title="Lihat" onclick="previewFile('form')">👁️</button>
+          </div>
+        </div>
+        <div class="specGroup">
+          <div class="specLabel">Foto Property</div>
+          <div class="fileRow">
+            <input id="propertyFile" type="file" accept="image/*">
+            <button type="button" id="btnPreviewProperty" class="queueIconBtn" style="display:none;" title="Lihat" onclick="previewFile('property')">👁️</button>
+          </div>
+        </div>
+      </div>
+      <div class="specGroup" style="margin-top:16px;">
+        <div class="specLabel">Narasi (opsional)</div>
+        <textarea id="narasi" placeholder="Narasi listing (opsional)"></textarea>
+      </div>
+      <div class="formActions">
+        <button type="button" id="btnCancelEdit" class="btnSecondary" onclick="cancelEdit()" style="display:none;">BATAL EDIT</button>
+        <button type="button" id="btnSubmitForm" onclick="submitForm()">KIRIM</button>
+      </div>
+      <div id="submitStatus" class="smallHint"></div>
+    </div>
+
+    <div class="filterBox">
+      <div class="filterTitle">Riwayat Submission Saya</div>
+      <div id="historyArea" class="scoreTableWrap"></div>
+    </div>
+  </div>
+
+<script>
+  const SCRIPT_URL = "/";
+  let myRows = [];
+  let editingFileId = null;
+
+  function $(id) { return document.getElementById(id); }
+  function safeStr(v) { return String(v == null ? "" : v); }
+  function escapeHtml(str) {
+    return safeStr(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function getStoredAgentCode() { return localStorage.getItem("hepi_agentCode") || ""; }
+  function getStoredPin() { return localStorage.getItem("hepi_pin") || ""; }
+
+  function saveSession(agentCode, pin, status, nama) {
+    try {
+      localStorage.setItem("hepi_agentCode", safeStr(agentCode).toUpperCase().trim());
+      localStorage.setItem("hepi_pin", safeStr(pin).trim());
+      localStorage.setItem("hepi_status", safeStr(status).toLowerCase().trim());
+      localStorage.setItem("hepi_nama", safeStr(nama).trim());
+    } catch (e) {}
+  }
+
+  function isLoggedIn() {
+    return !!(getStoredAgentCode() && getStoredPin());
+  }
+
+  function openLogin() { $("loginModal").style.display = "block"; }
+  function closeLogin() { $("loginModal").style.display = "none"; }
+
+  function doLogout() {
+    try {
+      localStorage.removeItem("hepi_agentCode");
+      localStorage.removeItem("hepi_pin");
+      localStorage.removeItem("hepi_status");
+      localStorage.removeItem("hepi_nama");
+    } catch (e) {}
+    window.top.location.href = "/";
+  }
+
+  function submitLogin() {
+    const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
+    const pin = safeStr($("loginPin").value).trim();
+    if (!code || !pin) {
+      alert("Hayoo isi Kode Agen dan PIN Anda!");
+      return;
+    }
+
+    const btn = $("btnSubmitLogin");
+    const original = btn.innerHTML;
+    btn.innerHTML = "Memeriksa...";
+    btn.disabled = true;
+
+    hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
+      .then(function(res) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        if (res && res.valid) {
+          saveSession(code, pin, res.status, res.nama);
+          closeLogin();
+          loadMine();
+        } else {
+          alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
+          $("loginPin").value = "";
+        }
+      })
+      .catch(function(err) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
+      });
+  }
+
+  let currentPreview = { form: null, property: null };
+
+  function updatePreviewButton(which) {
+    const btn = $(which === "form" ? "btnPreviewForm" : "btnPreviewProperty");
+    btn.style.display = currentPreview[which] ? "inline-flex" : "none";
+  }
+
+  function setLocalPreview(which, file) {
+    const prev = currentPreview[which];
+    if (prev && prev.kind === "local" && prev.url) URL.revokeObjectURL(prev.url);
+    currentPreview[which] = file ? { kind: "local", url: URL.createObjectURL(file), mime: file.type } : null;
+    updatePreviewButton(which);
+  }
+
+  function setRemotePreview(which, fileId, mime) {
+    const prev = currentPreview[which];
+    if (prev && prev.kind === "local" && prev.url) URL.revokeObjectURL(prev.url);
+    currentPreview[which] = fileId ? { kind: "remote", fileId: fileId, mime: mime } : null;
+    updatePreviewButton(which);
+  }
+
+  function previewFile(which) {
+    const p = currentPreview[which];
+    if (!p) return;
+    const isPdf = String(p.mime || "").indexOf("pdf") >= 0;
+    const body = $("previewBody");
+    if (p.kind === "local") {
+      body.innerHTML = isPdf ? '<iframe src="' + p.url + '"></iframe>' : '<img src="' + p.url + '" alt="preview">';
+    } else {
+      body.innerHTML = isPdf
+        ? '<iframe src="https://drive.google.com/file/d/' + encodeURIComponent(p.fileId) + '/preview"></iframe>'
+        : '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(p.fileId) + '=w1600" alt="preview">';
+    }
+    $("previewModal").style.display = "block";
+  }
+
+  function closePreview() {
+    $("previewModal").style.display = "none";
+    $("previewBody").innerHTML = "";
+  }
+
+  function openPreview(fileId, kind) {
+    const body = $("previewBody");
+    if (kind === "pdf") {
+      body.innerHTML = '<iframe src="https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/preview"></iframe>';
+    } else {
+      body.innerHTML = '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w1600" alt="preview">';
+    }
+    $("previewModal").style.display = "block";
+  }
+
+  $("formFile").addEventListener("change", function() { setLocalPreview("form", this.files[0] || null); });
+  $("propertyFile").addEventListener("change", function() { setLocalPreview("property", this.files[0] || null); });
+
+  function statusPillHtml(status) {
+    const s = safeStr(status);
+    const cls = s === "selesai" ? "queueStatusSelesai" : (s === "revisi" ? "queueStatusRevisi" : "queueStatusPending");
+    const label = s === "selesai" ? "Selesai" : (s === "revisi" ? "Perlu Revisi" : "Menunggu");
+    return '<span class="' + cls + '">' + escapeHtml(label) + '</span>';
+  }
+
+  function startEdit(fileId) {
+    const row = myRows.find(function(r) { return r.fileId === fileId; });
+    if (!row) return;
+    editingFileId = fileId;
+    $("formTitle").textContent = "Edit Submission (" + row.tanggal + ")";
+    $("editHint").style.display = "block";
+    $("btnCancelEdit").style.display = "block";
+    $("narasi").value = row.narasi || "";
+    $("formFile").value = "";
+    $("propertyFile").value = "";
+    setRemotePreview("form", row.formFileId, row.formMime);
+    setRemotePreview("property", row.propertyFileId, "image/jpeg");
+    $("submitStatus").className = "smallHint";
+    $("submitStatus").textContent = "";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    editingFileId = null;
+    $("formTitle").textContent = "Kirim Form Listing";
+    $("editHint").style.display = "none";
+    $("btnCancelEdit").style.display = "none";
+    $("narasi").value = "";
+    $("formFile").value = "";
+    $("propertyFile").value = "";
+    setLocalPreview("form", null);
+    setLocalPreview("property", null);
+  }
+
+  function renderHistory() {
+    if (!myRows.length) {
+      $("historyArea").innerHTML = '<div class="emptyState">Belum ada submission.</div>';
+      return;
+    }
+    let table = '<table class="scoreTable queueTable"><thead><tr>'
+      + '<th>Tanggal</th><th>Status</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Aksi</th>'
+      + '</tr></thead><tbody>';
+    myRows.forEach(function(r) {
+      const canEdit = r.status !== "selesai";
+      const isPdf = r.formMime === "application/pdf";
+      table += '<tr>'
+        + '<td>' + escapeHtml(r.tanggal) + '</td>'
+        + '<td>' + statusPillHtml(r.status) + '</td>'
+        + '<td>' + (r.formFileId ? '<button type="button" class="queueIconBtn" title="Lihat form fisik" onclick="openPreview(\'' + escapeHtml(r.formFileId) + '\', \'' + (isPdf ? "pdf" : "image") + '\')">' + (isPdf ? "📄" : "🖼️") + '</button>' : "—") + '</td>'
+        + '<td>' + (r.propertyFileId ? '<button type="button" class="queueIconBtn" title="Lihat foto property" onclick="openPreview(\'' + escapeHtml(r.propertyFileId) + '\', \'image\')">📷</button>' : "—") + '</td>'
+        + '<td>' + (r.feedback ? escapeHtml(r.feedback) : "—") + '</td>'
+        + '<td>' + (canEdit ? '<button type="button" class="queueTextBtn" onclick="startEdit(\'' + escapeHtml(r.fileId) + '\')">Edit</button>' : "—") + '</td>'
+        + '</tr>';
+    });
+    table += '</tbody></table>';
+    $("historyArea").innerHTML = table;
+  }
+
+  function loadMine() {
+    if (!isLoggedIn()) {
+      openLogin();
+      return;
+    }
+    $("historyArea").innerHTML = '<div class="emptyState">Memuat...</div>';
+    hepiApi("/api/form-listing/mine", { body: { agentCode: getStoredAgentCode(), pin: getStoredPin() } })
+      .then(function(res) {
+        myRows = (res && res.rows) || [];
+        renderHistory();
+      })
+      .catch(function(err) {
+        const msg = err && err.message ? err.message : String(err);
+        $("historyArea").innerHTML = '<div class="emptyState">' + escapeHtml(msg) + '</div>';
+        if (/login|salah|ngawur/i.test(msg)) openLogin();
+      });
+  }
+
+  function submitForm() {
+    if (!isLoggedIn()) {
+      openLogin();
+      return;
+    }
+
+    const formFile = $("formFile").files[0] || null;
+    const propertyFile = $("propertyFile").files[0] || null;
+    const narasi = safeStr($("narasi").value).trim();
+
+    if (!editingFileId) {
+      if (!formFile) { alert("Upload Foto Form Fisik (foto atau PDF)."); return; }
+      if (!propertyFile) { alert("Upload Foto Property."); return; }
+    } else if (!formFile && !propertyFile && !narasi) {
+      alert("Tidak ada perubahan untuk disimpan.");
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append("agentCode", getStoredAgentCode());
+    fd.append("pin", getStoredPin());
+    fd.append("narasi", narasi);
+    if (formFile) fd.append("form", formFile, formFile.name);
+    if (propertyFile) fd.append("property", propertyFile, propertyFile.name);
+    if (editingFileId) fd.append("fileId", editingFileId);
+
+    const btn = $("btnSubmitForm");
+    const original = btn.innerHTML;
+    btn.innerHTML = "Mengirim...";
+    btn.disabled = true;
+    $("submitStatus").className = "smallHint";
+    $("submitStatus").textContent = "";
+
+    hepiApi(editingFileId ? "/api/form-listing/edit" : "/api/form-listing/submit", { formData: fd })
+      .then(function(res) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        if (res && res.ok) {
+          $("submitStatus").className = "successBanner";
+          $("submitStatus").textContent = editingFileId ? "Perubahan tersimpan, menunggu review lagi." : "Form listing terkirim, menunggu review adminkantor.";
+          cancelEdit();
+          loadMine();
+          return;
+        }
+        $("submitStatus").textContent = "Gagal mengirim.";
+      })
+      .catch(function(err) {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        const msg = err && err.message ? err.message : String(err);
+        $("submitStatus").textContent = msg;
+        if (/login|salah|ngawur/i.test(msg)) openLogin();
+      });
+  }
+
+  if (isLoggedIn()) loadMine();
+  else openLogin();
+</script>
+</body>
+</html>
