@@ -35,11 +35,11 @@ const PAGE_FILES = {
   "/form-listing-review": "formlistingreview.html"
 };
 
-// "/" supports anonymous listing browsing by design — every other page is
-// agent-only, so an unauthenticated visitor is bounced to Google sign-in
-// before any of that page's HTML/JS ever reaches the browser (rather than
-// relying on a client-side modal, which can be inspected away).
-const PUBLIC_ROUTES = new Set(["/"]);
+// Every page requires login, including "/" — an unauthenticated visitor is
+// bounced to Google sign-in before any page's HTML/JS ever reaches the
+// browser (rather than relying on a client-side modal, which can be
+// inspected away).
+const PUBLIC_ROUTES = new Set([]);
 
 // Content-hashed asset URLs: the hash is derived from the file's own
 // bytes, so any edit to styles-v2.css / hepi-api.js / textsize.js changes
