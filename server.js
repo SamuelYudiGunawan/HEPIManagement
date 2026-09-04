@@ -211,6 +211,19 @@ async function build() {
     reply.status(status).send({ error: err.message || "Server error" });
   });
 
+  // Some hosts front this app with LiteSpeed's page cache, which can cache a
+  // dynamic response (e.g. the login-required redirect, or a page's HTML)
+  // per visitor even though nothing here is meant to be edge-cached — the
+  // hashed /assets/* routes already handle their own long-lived caching.
+  // X-LiteSpeed-Cache-Control is LiteSpeed's own opt-out header, honored by
+  // its cache engine regardless of any control-panel cache configuration.
+  app.addHook("onSend", async (req, reply, payload) => {
+    if (!req.url.startsWith("/assets/")) {
+      reply.header("X-LiteSpeed-Cache-Control", "no-cache");
+    }
+    return payload;
+  });
+
   Object.keys(PAGE_FILES).forEach((route) => {
     const file = PAGE_FILES[route];
     app.get(route, async (req, reply) => {
