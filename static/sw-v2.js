@@ -1,9 +1,9 @@
-const CACHE = "hepi-static-v3";
+const CACHE = "hepi-static-v4";
+// styles/js are now served from content-hashed /assets/<hash>/... URLs (see
+// server.js) — a given hash never changes meaning, so those are safe to
+// cache-first forever and don't need to be precached by exact path here.
 const ASSETS = [
   "/",
-  "/styles-v2.css",
-  "/js/hepi-api.js",
-  "/js/textsize.js",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/icon-512.png"

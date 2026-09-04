@@ -17,6 +17,7 @@ const listings = require("./lib/listings");
 const activity = require("./lib/activity");
 const importer = require("./lib/import");
 const formListing = require("./lib/formListing");
+const { hashFile } = require("./lib/assetVersion");
 const STATIC_DIR = path.join(__dirname, "static");
 const HTML_DIR = path.join(__dirname, "html");
 const BODY_LIMIT = 32 * 1024 * 1024;
@@ -32,10 +33,57 @@ const PAGE_FILES = {
   "/form-listing-review": "formlistingreview.html"
 };
 
+// Content-hashed asset URLs: the hash is derived from the file's own
+// bytes, so any edit to styles-v2.css / hepi-api.js / textsize.js changes
+// the URL automatically — both the browser's Service Worker cache and the
+// host's edge cache (which was ignoring cache-busting query strings) treat
+// a changed path as a brand-new resource, no manual rename needed anymore.
+function assetUrl(relPath) {
+  const abs = path.join(STATIC_DIR, relPath);
+  return "/assets/" + hashFile(abs) + "/" + relPath;
+}
+
 function sendHtml(reply, filename) {
   const file = path.join(HTML_DIR, filename);
-  const html = fs.readFileSync(file, "utf8");
+  let html = fs.readFileSync(file, "utf8");
+  html = html
+    .replace('href="/styles-v2.css"', 'href="' + assetUrl("styles-v2.css") + '"')
+    .replace('src="/js/hepi-api.js"', 'src="' + assetUrl("js/hepi-api.js") + '"')
+    .replace('src="/js/textsize.js"', 'src="' + assetUrl("js/textsize.js") + '"');
   return reply.type("text/html; charset=utf-8").send(html);
+}
+
+const ASSET_CONTENT_TYPES = {
+  ".css": "text/css; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8"
+};
+
+function registerAssetRoute(app) {
+  app.get("/assets/:hash/*", async (req, reply) => {
+    const rel = String(req.params["*"] || "");
+    const abs = path.normalize(path.join(STATIC_DIR, rel));
+    if (abs !== STATIC_DIR && !abs.startsWith(STATIC_DIR + path.sep)) {
+      return reply.status(400).send("Bad path");
+    }
+    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+      return reply.status(404).send("Not found");
+    }
+
+    let body = fs.readFileSync(abs);
+    if (rel === "js/hepi-api.js") {
+      // rewrite the SW registration to this same content-hashed scheme
+      const swHash = hashFile(path.join(STATIC_DIR, "sw-v2.js"));
+      body = Buffer.from(
+        body.toString("utf8").replace('"/sw-v2.js"', '"/assets/' + swHash + '/sw-v2.js"')
+      );
+    }
+
+    const ext = path.extname(abs).toLowerCase();
+    reply
+      .header("Cache-Control", "public, max-age=31536000, immutable")
+      .type(ASSET_CONTENT_TYPES[ext] || "application/octet-stream")
+      .send(body);
+  });
 }
 
 function credsOrThrow() {
@@ -126,6 +174,8 @@ async function build() {
     const file = PAGE_FILES[route];
     app.get(route, async (req, reply) => sendHtml(reply, file));
   });
+
+  registerAssetRoute(app);
 
   app.get("/api/health", async () => ({
     ok: true,

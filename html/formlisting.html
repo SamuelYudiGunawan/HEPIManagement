@@ -82,6 +82,10 @@
         </div>
       </div>
       <div class="specGroup" style="margin-top:16px;">
+        <div class="specLabel">Judul (opsional)</div>
+        <input id="judul" type="text" placeholder="Judul untuk nama folder (kosongkan untuk nama otomatis)">
+      </div>
+      <div class="specGroup" style="margin-top:16px;">
         <div class="specLabel">Narasi (opsional)</div>
         <textarea id="narasi" placeholder="Narasi listing (opsional)"></textarea>
       </div>
@@ -244,6 +248,7 @@
     $("formTitle").textContent = "Edit Submission (" + row.tanggal + ")";
     $("editHint").style.display = "block";
     $("btnCancelEdit").style.display = "block";
+    $("judul").value = "";
     $("narasi").value = row.narasi || "";
     $("formFile").value = "";
     $("propertyFile").value = "";
@@ -259,6 +264,7 @@
     $("formTitle").textContent = "Kirim Form Listing";
     $("editHint").style.display = "none";
     $("btnCancelEdit").style.display = "none";
+    $("judul").value = "";
     $("narasi").value = "";
     $("formFile").value = "";
     $("propertyFile").value = "";
@@ -329,6 +335,7 @@
     const fd = new FormData();
     fd.append("agentCode", getStoredAgentCode());
     fd.append("pin", getStoredPin());
+    fd.append("judul", safeStr($("judul").value).trim());
     fd.append("narasi", narasi);
     if (formFile) fd.append("form", formFile, formFile.name);
     if (propertyFile) fd.append("property", propertyFile, propertyFile.name);

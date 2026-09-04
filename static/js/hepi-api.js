@@ -25,6 +25,9 @@ function hepiApi(path, options) {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function() {
-    navigator.serviceWorker.register("/sw-v2.js").catch(function() {});
+    // server.js rewrites this literal path to a content-hashed /assets/<hash>/sw-v2.js
+    // URL when serving this file — the explicit scope keeps it controlling the
+    // whole site even though it's served from a nested path.
+    navigator.serviceWorker.register("/sw-v2.js", { scope: "/" }).catch(function() {});
   });
 }

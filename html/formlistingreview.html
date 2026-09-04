@@ -235,10 +235,10 @@
   }
 
   function rowHtml(r) {
-    const title = r.narasi ? ' title="Narasi: ' + escapeHtml(r.narasi) + '"' : "";
     return '<tr>'
-      + '<td' + title + '><b>' + escapeHtml(r.kodeAgen) + '</b></td>'
+      + '<td><b>' + escapeHtml(r.kodeAgen) + '</b></td>'
       + '<td>' + escapeHtml(r.tanggal) + '</td>'
+      + '<td class="queueNarasiCell" title="' + escapeHtml(r.narasi) + '">' + (r.narasi ? escapeHtml(r.narasi) : "—") + '</td>'
       + '<td>' + formIconHtml(r) + '</td>'
       + '<td>' + propertyIconHtml(r) + '</td>'
       + '<td>' + feedbackIconHtml(r) + '</td>'
@@ -249,7 +249,7 @@
 
   function tableHtml(rows) {
     return '<table class="scoreTable queueTable"><thead><tr>'
-      + '<th>Kode Agen</th><th>Tanggal</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Selesai</th><th>Folder</th>'
+      + '<th>Kode Agen</th><th>Tanggal</th><th>Narasi</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Selesai</th><th>Folder</th>'
       + '</tr></thead><tbody>' + rows.map(rowHtml).join("") + '</tbody></table>';
   }
 
