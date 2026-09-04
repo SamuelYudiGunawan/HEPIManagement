@@ -81,7 +81,7 @@
           </div>
         </div>
       </div>
-      <div class="specGroup" style="margin-top:16px;">
+      <div class="specGroup" id="judulGroup" style="margin-top:16px;">
         <div class="specLabel">Judul (opsional)</div>
         <input id="judul" type="text" placeholder="Judul untuk nama folder (kosongkan untuk nama otomatis)">
       </div>
@@ -248,6 +248,7 @@
     $("formTitle").textContent = "Edit Submission (" + row.tanggal + ")";
     $("editHint").style.display = "block";
     $("btnCancelEdit").style.display = "block";
+    $("judulGroup").style.display = "none";
     $("judul").value = "";
     $("narasi").value = row.narasi || "";
     $("formFile").value = "";
@@ -264,6 +265,7 @@
     $("formTitle").textContent = "Kirim Form Listing";
     $("editHint").style.display = "none";
     $("btnCancelEdit").style.display = "none";
+    $("judulGroup").style.display = "";
     $("judul").value = "";
     $("narasi").value = "";
     $("formFile").value = "";
