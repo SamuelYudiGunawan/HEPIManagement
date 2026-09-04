@@ -57,7 +57,7 @@
   <div class="pageWrap">
     <div id="saveBanner" class="successBanner" style="display:none;"></div>
     <div class="filterBox">
-      <div class="filterTitle" id="historyTitle">History 2 bulan terakhir</div>
+      <div class="filterTitle" id="historyTitle">History</div>
       <div class="calLegend">
         <span><i class="calSwatch"></i> Belum isi</span>
         <span><i class="calSwatch calSwatchFilled"></i> Sudah isi</span>
@@ -245,7 +245,7 @@
   function renderCalendar(data) {
     historyData = data;
     const nama = data && data.nama ? data.nama : "";
-    $("historyTitle").textContent = (nama ? nama + " — " : "") + "2 bulan terakhir";
+    $("historyTitle").textContent = (nama ? nama + " — " : "");
 
     $("calStatus").innerHTML = "";
     const months = (data && data.months) || [];
