@@ -87,7 +87,7 @@
       </div>
       <div class="specGroup" style="margin-top:16px;">
         <div class="specLabel">Narasi (opsional)</div>
-        <textarea id="narasi" placeholder="Narasi listing (opsional)"></textarea>
+        <textarea id="narasi" placeholder="Narasi listing (opsional). Kalau sudah ada kontak agen, dibiarkan. Kalau belum, Hubungi + hashtag ditambah otomatis. Bisa diedit."></textarea>
       </div>
       <div class="formActions">
         <button type="button" id="btnCancelEdit" class="btnSecondary" onclick="cancelEdit()" style="display:none;">BATAL EDIT</button>
@@ -120,14 +120,92 @@
 
   function getStoredAgentCode() { return localStorage.getItem("hepi_agentCode") || ""; }
   function getStoredPin() { return localStorage.getItem("hepi_pin") || ""; }
+  function getStoredNama() { return localStorage.getItem("hepi_nama") || ""; }
+  function getStoredHp() { return localStorage.getItem("hepi_hp") || ""; }
+  function currentAgent() { return { kode: getStoredAgentCode(), nama: getStoredNama(), hp: getStoredHp() }; }
 
-  function saveSession(agentCode, pin, status, nama) {
+  function saveSession(agentCode, pin, status, nama, hp) {
     try {
       localStorage.setItem("hepi_agentCode", safeStr(agentCode).toUpperCase().trim());
       localStorage.setItem("hepi_pin", safeStr(pin).trim());
       localStorage.setItem("hepi_status", safeStr(status).toLowerCase().trim());
       localStorage.setItem("hepi_nama", safeStr(nama).trim());
+      localStorage.setItem("hepi_hp", safeStr(hp).trim());
     } catch (e) {}
+  }
+
+  // Same narrative-footer logic as inputlisting.html, ported client-side so
+  // the "Hubungi" + hashtag block gets prefilled/completed the same way.
+  function formatPhoneDisplay(hp) {
+    const d = safeStr(hp).replace(/\D/g, "");
+    if (!d) return "";
+    if (d.length < 8) return d;
+    return d.replace(/(\d{4})(\d{4})(\d+)/, "$1-$2-$3");
+  }
+
+  function listingHashtags(agent) {
+    return "#HepiProperty #HepiPropertySemarang #JualanPropertyItuAsyik #SingPentingHepi #" + safeStr(agent && agent.kode).toUpperCase();
+  }
+
+  function canonicalAgentFooter(agent) {
+    agent = agent || {};
+    const lines = [];
+    lines.push("Hubungi : ");
+    lines.push(agent.nama || agent.kode || "");
+    const hp = formatPhoneDisplay(agent.hp);
+    if (hp) lines.push(hp);
+    lines.push("");
+    lines.push(listingHashtags(agent));
+    return lines.join("\n");
+  }
+
+  // Special case: if the agent already wrote their own contact info (a phone
+  // number, or words like "hubungi"/"wa"/"contact"), don't bolt on a second
+  // one — just make sure the hashtag line is there.
+  function hasAgentContact(text) {
+    const s = safeStr(text);
+    if (!s) return false;
+    if (/\bhubungi\b|\bhub\b|\bcontact\b|whats?app|\bwa\b|hp\s*[&+]?\s*wa|more\s*info/i.test(s)) return true;
+    const matches = s.match(/(?:\+?62|0)\d[\d\-\s().]{6,}\d/g);
+    if (!matches) return false;
+    for (let i = 0; i < matches.length; i++) {
+      const d = matches[i].replace(/\D/g, "");
+      if (d.length >= 9 && d.length <= 15) return true;
+    }
+    return false;
+  }
+
+  function endsWithHashtags(text) {
+    let lines = safeStr(text).replace(/\r\n/g, "\n").trim().split("\n");
+    while (lines.length && !safeStr(lines[lines.length - 1]).trim()) lines.pop();
+    const last = lines.length ? safeStr(lines[lines.length - 1]).trim() : "";
+    return /^(#[^\s#]+\s*)+$/.test(last);
+  }
+
+  function completeOwnNarrative(text, agent) {
+    const raw = safeStr(text).replace(/\r\n/g, "\n").trim();
+    if (!raw) return "";
+    if (hasAgentContact(raw)) {
+      if (endsWithHashtags(raw)) return raw;
+      const kode = agent && agent.kode;
+      if (!kode) return raw;
+      return (raw + "\n\n" + listingHashtags(agent)).replace(/\n{3,}/g, "\n\n").trim();
+    }
+    if (!agent || !(agent.nama || agent.kode || agent.hp)) return raw;
+    return (raw + "\n\n" + canonicalAgentFooter(agent).trim()).replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // Used for prefill: an empty box always starts from the footer template;
+  // non-empty text goes through the smart-completion above instead.
+  function narasiWithFooter(text, agent) {
+    const raw = safeStr(text).trim();
+    if (!raw) return canonicalAgentFooter(agent).trim();
+    return completeOwnNarrative(raw, agent);
+  }
+
+  function prefillNarasiIfEmpty() {
+    if (safeStr($("narasi").value).trim()) return;
+    $("narasi").value = narasiWithFooter("", currentAgent());
   }
 
   function isLoggedIn() {
@@ -143,6 +221,7 @@
       localStorage.removeItem("hepi_pin");
       localStorage.removeItem("hepi_status");
       localStorage.removeItem("hepi_nama");
+      localStorage.removeItem("hepi_hp");
     } catch (e) {}
     window.top.location.href = "/";
   }
@@ -165,8 +244,9 @@
         btn.innerHTML = original;
         btn.disabled = false;
         if (res && res.valid) {
-          saveSession(code, pin, res.status, res.nama);
+          saveSession(code, pin, res.status, res.nama, res.hp);
           closeLogin();
+          prefillNarasiIfEmpty();
           loadMine();
         } else {
           alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
@@ -250,7 +330,7 @@
     $("btnCancelEdit").style.display = "block";
     $("judulGroup").style.display = "none";
     $("judul").value = "";
-    $("narasi").value = row.narasi || "";
+    $("narasi").value = narasiWithFooter(row.narasi || "", currentAgent());
     $("formFile").value = "";
     $("propertyFile").value = "";
     setRemotePreview("form", row.formFileId, row.formMime);
@@ -268,6 +348,7 @@
     $("judulGroup").style.display = "";
     $("judul").value = "";
     $("narasi").value = "";
+    prefillNarasiIfEmpty();
     $("formFile").value = "";
     $("propertyFile").value = "";
     setLocalPreview("form", null);
@@ -280,7 +361,7 @@
       return;
     }
     let table = '<table class="scoreTable queueTable"><thead><tr>'
-      + '<th>Tanggal</th><th>Status</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Aksi</th>'
+      + '<th>Tanggal</th><th>Status</th><th>Narasi</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Aksi</th>'
       + '</tr></thead><tbody>';
     myRows.forEach(function(r) {
       const canEdit = r.status !== "selesai";
@@ -288,6 +369,7 @@
       table += '<tr>'
         + '<td>' + escapeHtml(r.tanggal) + '</td>'
         + '<td>' + statusPillHtml(r.status) + '</td>'
+        + '<td class="queueNarasiCell" title="' + escapeHtml(r.narasi) + '">' + (r.narasi ? escapeHtml(r.narasi) : "—") + '</td>'
         + '<td>' + (r.formFileId ? '<button type="button" class="queueIconBtn" title="Lihat form fisik" onclick="openPreview(\'' + escapeHtml(r.formFileId) + '\', \'' + (isPdf ? "pdf" : "image") + '\')">' + (isPdf ? "📄" : "🖼️") + '</button>' : "—") + '</td>'
         + '<td>' + (r.propertyFileId ? '<button type="button" class="queueIconBtn" title="Lihat foto property" onclick="openPreview(\'' + escapeHtml(r.propertyFileId) + '\', \'image\')">📷</button>' : "—") + '</td>'
         + '<td>' + (r.feedback ? escapeHtml(r.feedback) : "—") + '</td>'
@@ -324,7 +406,7 @@
 
     const formFile = $("formFile").files[0] || null;
     const propertyFile = $("propertyFile").files[0] || null;
-    const narasi = safeStr($("narasi").value).trim();
+    const narasi = completeOwnNarrative($("narasi").value, currentAgent());
 
     if (!editingFileId) {
       if (!formFile) { alert("Upload Foto Form Fisik (foto atau PDF)."); return; }
@@ -372,8 +454,12 @@
       });
   }
 
-  if (isLoggedIn()) loadMine();
-  else openLogin();
+  if (isLoggedIn()) {
+    prefillNarasiIfEmpty();
+    loadMine();
+  } else {
+    openLogin();
+  }
 </script>
 </body>
 </html>
