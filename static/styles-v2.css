@@ -665,6 +665,22 @@
     }
     .scoreTable th { font-weight: 800; }
     .scoreTable td:last-child, .scoreTable th:last-child { padding-right: 4px; }
+
+    /* Scrolling placeholder: on narrow screens, longer placeholders (e.g.
+       "Tahun Start (mis. 2026)") don't fit the input and get clipped.
+       Nudging the empty input's own text-indent back and forth over time
+       reveals the rest of the text. :placeholder-shown (and the animation
+       with it) drops out the instant the field has a value, so real typed
+       text is never shifted or hidden. */
+    input:not([type="checkbox"]):not([type="file"]):not([type="date"]):placeholder-shown {
+      animation: hepiPlaceholderWalk 7s ease-in-out infinite;
+    }
+  }
+
+  @keyframes hepiPlaceholderWalk {
+    0%, 12% { text-indent: 0; }
+    50%, 62% { text-indent: -65%; }
+    100% { text-indent: 0; }
   }
 
   @media (min-width: 1024px) {

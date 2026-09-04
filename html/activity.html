@@ -11,6 +11,7 @@
   <title>Daily Activity</title>
   <link rel="stylesheet" href="/styles-v2.css">
   <script src="/js/hepi-api.js"></script>
+  <script src="/js/hepi-auth.js"></script>
   <script src="/js/textsize.js"></script>
   <script>
     try {
@@ -26,13 +27,8 @@
     <div class="sold-box">
       <h2>VERIFIKASI AKSES AGEN</h2>
       <div class="sold-text" style="margin-bottom:10px;">Login dulu untuk isi Daily Activity</div>
-      <div class="loginFields">
-        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
-        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
-        <div class="smallHint">Kode agen & PIN disimpan di browser ini.</div>
-      </div>
       <div class="sold-buttons">
-        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+        <button id="btnSubmitLogin" onclick="hepiAuth.login()" style="background:#1565c0;">Login dengan Google</button>
       </div>
     </div>
   </div>
@@ -105,25 +101,6 @@
 
   function safeStr(v) { return String(v == null ? "" : v); }
 
-  function getStoredAgentCode() {
-    return localStorage.getItem("hepi_agentCode") || "";
-  }
-  function getStoredPin() {
-    return localStorage.getItem("hepi_pin") || "";
-  }
-  function getStoredNama() {
-    return localStorage.getItem("hepi_nama") || "";
-  }
-
-  function saveSession(agentCode, pin, status, nama) {
-    try {
-      localStorage.setItem("hepi_agentCode", safeStr(agentCode).toUpperCase().trim());
-      localStorage.setItem("hepi_pin", safeStr(pin).trim());
-      localStorage.setItem("hepi_status", safeStr(status).toLowerCase().trim());
-      localStorage.setItem("hepi_nama", safeStr(nama).trim());
-    } catch (e) {}
-  }
-
   function todayInputValue() {
     const d = new Date();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -132,7 +109,7 @@
   }
 
   function fillNama() {
-    $("namaAgen").value = getStoredNama() || getStoredAgentCode() || "";
+    $("namaAgen").value = hepiAuth.getNama();
   }
 
   function setupCountFields() {
@@ -188,13 +165,13 @@
   }
 
   function checkSelectedDate() {
-    if (!isLoggedIn()) return;
+    if (!hepiAuth.isLoggedIn()) return;
     const tanggal = safeStr($("tanggal").value).trim();
     if (!tanggal) {
       setDateFilledState(false, "", false);
       return;
     }
-    hepiApi("/api/activity/check", { body: { agentCode: getStoredAgentCode(), pin: getStoredPin(), tanggal: tanggal } })
+    hepiApi("/api/activity/check", { body: { tanggal: tanggal } })
       .then(function(res) {
         setDateFilledState(res && res.filled, (res && res.tanggal) || tanggal, res && res.hasClosing);
       })
@@ -203,56 +180,12 @@
       });
   }
 
-  function isLoggedIn() {
-    return !!(getStoredAgentCode() && getStoredPin());
-  }
-
   function doLogout() {
-    try {
-      localStorage.removeItem("hepi_agentCode");
-      localStorage.removeItem("hepi_pin");
-      localStorage.removeItem("hepi_status");
-      localStorage.removeItem("hepi_nama");
-    } catch (e) {}
-    window.top.location.href = "/";
-  }
-
-  function submitLogin() {
-    const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
-    const pin = safeStr($("loginPin").value).trim();
-    if (!code || !pin) {
-      alert("Hayoo isi Kode Agen dan PIN Anda!");
-      return;
-    }
-
-    const btn = $("btnSubmitLogin");
-    const original = btn.innerHTML;
-    btn.innerHTML = "Memeriksa...";
-    btn.disabled = true;
-
-    hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
-      .then(function(res) {
-        btn.innerHTML = original;
-        btn.disabled = false;
-        if (res && res.valid) {
-          saveSession(code, pin, res.status, res.nama);
-          fillNama();
-          closeLogin();
-          checkSelectedDate();
-        } else {
-          alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
-          $("loginPin").value = "";
-        }
-      })
-      .catch(function(err) {
-        btn.innerHTML = original;
-        btn.disabled = false;
-        alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
-      });
+    hepiAuth.logout();
   }
 
   function submitActivity() {
-    if (!isLoggedIn()) {
+    if (!hepiAuth.isLoggedIn()) {
       openLogin();
       return;
     }
@@ -282,7 +215,7 @@
     btn.disabled = true;
     $("submitStatus").textContent = "";
 
-    hepiApi("/api/activity", { body: Object.assign({ agentCode: getStoredAgentCode(), pin: getStoredPin() }, payload) })
+    hepiApi("/api/activity", { body: payload })
       .then(function(res) {
         if (res && res.ok) {
           try {
@@ -316,10 +249,12 @@
 
   $("tanggal").value = todayInputValue();
   $("tanggal").addEventListener("change", checkSelectedDate);
-  fillNama();
   setupCountFields();
-  if (!isLoggedIn()) openLogin();
-  else checkSelectedDate();
+  hepiAuth.onReady(function() {
+    fillNama();
+    if (!hepiAuth.isLoggedIn()) openLogin();
+    else checkSelectedDate();
+  });
 </script>
 </body>
 </html>

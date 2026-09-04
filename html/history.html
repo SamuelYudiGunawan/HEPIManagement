@@ -11,6 +11,7 @@
   <title>History</title>
   <link rel="stylesheet" href="/styles-v2.css">
   <script src="/js/hepi-api.js"></script>
+  <script src="/js/hepi-auth.js"></script>
   <script src="/js/textsize.js"></script>
   <script>
     try {
@@ -26,13 +27,8 @@
     <div class="sold-box">
       <h2>VERIFIKASI AKSES AGEN</h2>
       <div class="sold-text" style="margin-bottom:10px;">Login dulu untuk lihat history</div>
-      <div class="loginFields">
-        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
-        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
-        <div class="smallHint">Kode agen & PIN disimpan di browser ini.</div>
-      </div>
       <div class="sold-buttons">
-        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+        <button id="btnSubmitLogin" onclick="hepiAuth.login()" style="background:#1565c0;">Login dengan Google</button>
       </div>
     </div>
   </div>
@@ -104,33 +100,11 @@
       .replace(/'/g, "&#039;");
   }
 
-  function getStoredAgentCode() { return localStorage.getItem("hepi_agentCode") || ""; }
-  function getStoredPin() { return localStorage.getItem("hepi_pin") || ""; }
-
-  function saveSession(agentCode, pin, status, nama) {
-    try {
-      localStorage.setItem("hepi_agentCode", safeStr(agentCode).toUpperCase().trim());
-      localStorage.setItem("hepi_pin", safeStr(pin).trim());
-      localStorage.setItem("hepi_status", safeStr(status).toLowerCase().trim());
-      localStorage.setItem("hepi_nama", safeStr(nama).trim());
-    } catch (e) {}
-  }
-
-  function isLoggedIn() {
-    return !!(getStoredAgentCode() && getStoredPin());
-  }
-
   function openLogin() { $("loginModal").style.display = "block"; }
   function closeLogin() { $("loginModal").style.display = "none"; }
 
   function doLogout() {
-    try {
-      localStorage.removeItem("hepi_agentCode");
-      localStorage.removeItem("hepi_pin");
-      localStorage.removeItem("hepi_status");
-      localStorage.removeItem("hepi_nama");
-    } catch (e) {}
-    window.top.location.href = "/";
+    hepiAuth.logout();
   }
 
   function pad2(n) {
@@ -188,39 +162,6 @@
     }
     html += '</div>';
     return html;
-  }
-
-  function submitLogin() {
-    const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
-    const pin = safeStr($("loginPin").value).trim();
-    if (!code || !pin) {
-      alert("Hayoo isi Kode Agen dan PIN Anda!");
-      return;
-    }
-
-    const btn = $("btnSubmitLogin");
-    const original = btn.innerHTML;
-    btn.innerHTML = "Memeriksa...";
-    btn.disabled = true;
-
-    hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
-      .then(function(res) {
-        btn.innerHTML = original;
-        btn.disabled = false;
-        if (res && res.valid) {
-          saveSession(code, pin, res.status, res.nama);
-          closeLogin();
-          loadHistory();
-        } else {
-          alert("Akses ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
-          $("loginPin").value = "";
-        }
-      })
-      .catch(function(err) {
-        btn.innerHTML = original;
-        btn.disabled = false;
-        alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
-      });
   }
 
   function visibleMonth() {
@@ -323,7 +264,7 @@
   });
 
   function loadHistory() {
-    if (!isLoggedIn()) {
+    if (!hepiAuth.isLoggedIn()) {
       openLogin();
       $("calStatus").innerHTML = '<div class="emptyState">Login dulu untuk lihat history.</div>';
       $("monthPass").innerHTML = "";
@@ -336,7 +277,7 @@
     $("monthGrid").innerHTML = "";
     $("dayDetail").innerHTML = "";
 
-    hepiApi("/api/history", { body: { agentCode: getStoredAgentCode(), pin: getStoredPin() } })
+    hepiApi("/api/history", { body: {} })
       .then(renderCalendar)
       .catch(function(err) {
         const msg = err && err.message ? err.message : String(err);
@@ -355,8 +296,10 @@
       : "Aktivitas" + tgl + " berhasil disimpan.";
   }
 
-  if (isLoggedIn()) loadHistory();
-  else openLogin();
+  hepiAuth.onReady(function() {
+    if (hepiAuth.isLoggedIn()) loadHistory();
+    else openLogin();
+  });
 </script>
 </body>
 </html>

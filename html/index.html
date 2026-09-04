@@ -773,6 +773,22 @@
       font-size: 11px !important;
     }
     .filterBox .specGroup .cselect-arrow { font-size: 11px !important; }
+
+    /* Scrolling placeholder: on narrow screens, longer placeholders (e.g.
+       "Tahun Start (mis. 2026)") don't fit the input and get clipped.
+       Nudging the empty input's own text-indent back and forth over time
+       reveals the rest of the text. :placeholder-shown (and the animation
+       with it) drops out the instant the field has a value, so real typed
+       text is never shifted or hidden. */
+    .filterBox input:not([type="checkbox"]):not([type="file"]):not([type="date"]):placeholder-shown {
+      animation: hepiPlaceholderWalk 7s ease-in-out infinite;
+    }
+  }
+
+  @keyframes hepiPlaceholderWalk {
+    0%, 12% { text-indent: 0; }
+    50%, 62% { text-indent: -65%; }
+    100% { text-indent: 0; }
   }
 
   /* =========================
@@ -1158,6 +1174,7 @@
   }
 </style>
   <script src="/js/hepi-api.js"></script>
+  <script src="/js/hepi-auth.js"></script>
   <script src="/js/textsize.js"></script>
 </head>
 <body>
@@ -1167,14 +1184,8 @@
       <h2> VERIFIKASI AKSES AGEN</h2>
       <div class="sold-text" style="margin-bottom:10px;">Login dulu untuk akses tombol SOLD</div>
 
-      <div class="loginFields">
-        <input id="loginAgentCode" placeholder="KODE AGEN" style="text-transform: uppercase;">
-        <input id="loginPin" type="password" placeholder="PIN / PASSWORD">
-        <div class="smallHint">Kode agen & PIN akan disimpan di browser HP ini agar tidak perlu login ulang setiap kali buka listing.</div>
-      </div>
-
       <div class="sold-buttons">
-        <button id="btnSubmitLogin" onclick="submitLogin()" style="background:#1565c0;">Login</button>
+        <button id="btnSubmitLogin" onclick="hepiAuth.login(window.location.pathname + window.location.search)" style="background:#1565c0;">Login dengan Google</button>
       </div>
     </div>
   </div>
@@ -1557,20 +1568,6 @@
     let ALL_DATA = [];
     let soldFileId = "";
     let soldFileName = "";
-    let sessionAgentCode = "";
-    let sessionPin = "";
-    let sessionStatus = "";
-    let sessionNama = "";
-
-    function isAdmin() {
-      if (sessionStatus === "admin") return true;
-      const storedStatus = localStorage.getItem("hepi_status");
-      if (storedStatus === "admin") {
-        sessionStatus = "admin";
-        return true;
-      }
-      return false;
-    }
 
     function $(id) {
       return document.getElementById(id);
@@ -1630,10 +1627,10 @@
     }
 
     function isOwnerAgent(item) {
-      if (isAdmin()) return true;
+      if (hepiAuth.isAdmin()) return true;
       const owner = normalizeText(item && item.agen);
       if (!owner) return true;
-      return owner === normalizeText(getStoredNama());
+      return owner === normalizeText(hepiAuth.getNama());
     }
 
     function askOwnerToMarkSold(item) {
@@ -1676,56 +1673,8 @@
       el.value = Number(v).toLocaleString("id-ID");
     }
 
-    function getStoredAgentCode() {
-      return sessionAgentCode || localStorage.getItem("hepi_agentCode") || "";
-    }
-
-    function getStoredPin() {
-      return sessionPin || localStorage.getItem("hepi_pin") || "";
-    }
-
-    function getStoredNama() {
-      return sessionNama || localStorage.getItem("hepi_nama") || "";
-    }
-
-    function saveSession(agentCode, pin, status, nama) {
-      sessionAgentCode = safeStr(agentCode).toUpperCase().trim();
-      sessionPin = safeStr(pin).trim();
-      sessionStatus = safeStr(status).toLowerCase().trim();
-      sessionNama = safeStr(nama).trim();
-      try {
-        localStorage.setItem("hepi_agentCode", sessionAgentCode);
-        localStorage.setItem("hepi_pin", sessionPin);
-        localStorage.setItem("hepi_status", sessionStatus);
-        localStorage.setItem("hepi_nama", sessionNama);
-      } catch (e) {}
-    }
-
-    function clearSession() {
-      sessionAgentCode = "";
-      sessionPin = "";
-      try {
-        localStorage.removeItem("hepi_agentCode");
-        localStorage.removeItem("hepi_pin");
-      } catch (e) {}
-      $("loginAgentCode").value = "";
-      $("loginPin").value = "";
-    }
-    
     function doLogout() {
-      sessionAgentCode = "";
-      sessionPin = "";
-      sessionStatus = "";
-      sessionNama = "";
-      
-      try {
-        localStorage.removeItem("hepi_agentCode");
-        localStorage.removeItem("hepi_pin");
-        localStorage.removeItem("hepi_status");
-        localStorage.removeItem("hepi_nama");
-      } catch (e) {}
-      
-      location.reload();
+      hepiAuth.logout();
     }
 
     function openLoginModal() {
@@ -1738,7 +1687,7 @@
 
     // Allow tapping outside the box to close the modal backdrop only if already logged in
     document.getElementById("loginModal").addEventListener("click", function(e) {
-      if (e.target === this && (getStoredAgentCode() && getStoredPin())) {
+      if (e.target === this && hepiAuth.isLoggedIn()) {
         closeLoginModal();
       }
     });
@@ -1767,54 +1716,6 @@
       $("messageModal").style.display = "none";
     }
 
-    function submitLogin() {
-      if (document.activeElement) document.activeElement.blur();
-
-      const code = safeStr($("loginAgentCode").value).toUpperCase().trim();
-      const pin = safeStr($("loginPin").value).trim();
-
-      if (!code || !pin) {
-        alert("Hayoo isi Kode Agen dan PIN Anda!");
-        return;
-      }
-
-      const btn = $("btnSubmitLogin");
-      const originalText = btn.innerHTML;
-      btn.innerHTML = "Memeriksa... ⏳";
-      btn.disabled = true;
-
-      hepiApi("/api/login", { body: { agentCode: code, pin: pin } })
-        .then(function(res) {
-          btn.innerHTML = originalText;
-          btn.disabled = false;
-
-          if (res && res.valid) {
-            sessionStatus = safeStr(res.status).toLowerCase().trim();
-            saveSession(code, pin, res.status, res.nama);
-            $("loginModal").style.display = "none";
-
-            if (soldFileId) {
-              const item = ALL_DATA.find(x => safeStr(x.fileId) === safeStr(soldFileId));
-              openSoldModal(soldFileId, soldFileName || (item ? item.fileName : ""), item ? isSold(item) : false);
-            } else if (isDetailMode) {
-              render();
-            } else {
-              loadData(false); 
-              $("stats").innerHTML = "👆 Isi filter di atas, lalu klik tombol <b>CARIIN LISTING</b>.";
-              $("results").innerHTML = "";
-            }
-          } else {
-            alert("❌ Ngawur! Akses Ditolak: " + (res && res.pesan ? res.pesan : "Login gagal"));
-            $("loginPin").value = "";
-          }
-        })
-        .catch(function(err) {
-          btn.innerHTML = originalText;
-          btn.disabled = false;
-          alert("Salahkan jaringan: " + (err && err.message ? err.message : err));
-        });
-    }
-
     function markSold(fileId) {
       if (document.activeElement) document.activeElement.blur();
 
@@ -1822,10 +1723,7 @@
       soldFileId = fileId;
       soldFileName = item ? item.fileName : "";
 
-      const agentCode = getStoredAgentCode();
-      const pin = getStoredPin();
-
-      if (!agentCode || !pin) {
+      if (!hepiAuth.isLoggedIn()) {
         openLoginModal();
         return;
       }
@@ -1839,15 +1737,12 @@
     }
 
     function confirmSold() {
-      const agentCode = getStoredAgentCode();
-      const pin = getStoredPin();
-
       if (!soldFileId) {
         closeSoldModal();
         return;
       }
 
-      if (!agentCode || !pin) {
+      if (!hepiAuth.isLoggedIn()) {
         closeSoldModal();
         openLoginModal();
         return;
@@ -1858,7 +1753,7 @@
       btn.innerHTML = "Memproses...";
       btn.disabled = true;
 
-      hepiApi("/api/sold", { body: { fileId: soldFileId, agentCode: agentCode, pin: pin } })
+      hepiApi("/api/sold", { body: { fileId: soldFileId } })
         .then(function(res) {
           var status = res && res.status ? res.status : res;
           btn.innerHTML = originalText;
@@ -1882,8 +1777,8 @@
 
           const msg = err && err.message ? err.message : String(err);
 
-          if (/pin|salah|ditolak/i.test(msg)) {
-            clearSession();
+          if (/login/i.test(msg)) {
+            openLoginModal();
           }
 
           showMessage("⚠️ " + msg);
@@ -2066,7 +1961,7 @@
       let soldBtnClass = "soldBtn";
       let soldBtnDisabledAttr = "";
 
-      if (sold && !isAdmin()) {
+      if (sold && !hepiAuth.isAdmin()) {
         soldLabel = "SOLD";
         soldBtnClass = "soldBtn sold";
         soldBtnDisabledAttr = "disabled";
@@ -2284,7 +2179,7 @@
           : [];
 
         const daftarAgen = [...new Set(
-          ALL_DATA.map(x => normalizeText(x.agen)).filter(Boolean)
+          ALL_DATA.flatMap(x => [normalizeText(x.agen), normalizeText(x.kodeAgen)]).filter(Boolean)
         )];
 
         const daftarTipeKat = [
@@ -2308,11 +2203,12 @@
 
           const areaT = normalizeText(x.area);
           const agenT = normalizeText(x.agen);
+          const kodeAgenT = normalizeText(x.kodeAgen);
           const tipeT = normalizeText(x.tipe);
           const katT = normalizeText(x.kategori);
           const nameT = normalizeText(x.fileName);
 
-          const textLengkap = `${areaT} ${agenT} ${tipeT} ${katT} ${nameT}`;
+          const textLengkap = `${areaT} ${agenT} ${kodeAgenT} ${tipeT} ${katT} ${nameT}`;
           const harga = Number(x.harga || 0);
           const lt = Number(x.luasTanah || 0);
           const lb = Number(x.luasBangunan || 0);
@@ -2327,7 +2223,7 @@
           let lolosLokasi = true;
           if (kataLokasi.length > 0) {
             lolosLokasi = kataLokasi.some(kw =>
-              areaT.includes(kw) || nameT.includes(kw)
+              areaT.includes(kw) || nameT.includes(kw) || agenT.includes(kw) || kodeAgenT.includes(kw)
             );
           }
 
@@ -2541,11 +2437,6 @@
       soldFileId = "";
       soldFileName = "";
 
-      const agentCode = localStorage.getItem("hepi_agentCode");
-      const pin = localStorage.getItem("hepi_pin");
-
-      if (agentCode) $("loginAgentCode").value = agentCode;
-
       let restoredFilterState = null;
 
       if (isDetailMode) {
@@ -2573,11 +2464,13 @@
 
       loadData(!!restoredFilterState);
 
-      if (!agentCode || !pin) {
-        setTimeout(() => {
-          openLoginModal();
-        }, 500);
-      }
+      hepiAuth.onReady(function() {
+        if (!hepiAuth.isLoggedIn()) {
+          setTimeout(() => {
+            openLoginModal();
+          }, 500);
+        }
+      });
     };
   </script>
 </body>

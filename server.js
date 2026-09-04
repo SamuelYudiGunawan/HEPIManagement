@@ -18,6 +18,8 @@ const activity = require("./lib/activity");
 const importer = require("./lib/import");
 const formListing = require("./lib/formListing");
 const { hashFile } = require("./lib/assetVersion");
+const session = require("./lib/session");
+const googleSignIn = require("./lib/googleSignIn");
 const STATIC_DIR = path.join(__dirname, "static");
 const HTML_DIR = path.join(__dirname, "html");
 const BODY_LIMIT = 32 * 1024 * 1024;
@@ -32,6 +34,12 @@ const PAGE_FILES = {
   "/form-listing": "formlisting.html",
   "/form-listing-review": "formlistingreview.html"
 };
+
+// "/" supports anonymous listing browsing by design — every other page is
+// agent-only, so an unauthenticated visitor is bounced to Google sign-in
+// before any of that page's HTML/JS ever reaches the browser (rather than
+// relying on a client-side modal, which can be inspected away).
+const PUBLIC_ROUTES = new Set(["/"]);
 
 // Content-hashed asset URLs: the hash is derived from the file's own
 // bytes, so any edit to styles-v2.css / hepi-api.js / textsize.js changes
@@ -49,6 +57,7 @@ function sendHtml(reply, filename) {
   html = html
     .replace('href="/styles-v2.css"', 'href="' + assetUrl("styles-v2.css") + '"')
     .replace('src="/js/hepi-api.js"', 'src="' + assetUrl("js/hepi-api.js") + '"')
+    .replace('src="/js/hepi-auth.js"', 'src="' + assetUrl("js/hepi-auth.js") + '"')
     .replace('src="/js/textsize.js"', 'src="' + assetUrl("js/textsize.js") + '"');
   return reply.type("text/html; charset=utf-8").send(html);
 }
@@ -116,13 +125,45 @@ function timingSafeStringEqual(a, b) {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
-function authFrom(body, query) {
-  const src = body || {};
-  const q = query || {};
-  return {
-    agentCode: src.agentCode || src.kode || q.agentCode || "",
-    pin: src.pin || q.pin || ""
-  };
+function isHttps(req) {
+  return req.protocol === "https";
+}
+
+function setCookie(reply, req, name, value, maxAgeSeconds) {
+  const parts = [
+    name + "=" + encodeURIComponent(value),
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=" + maxAgeSeconds
+  ];
+  if (isHttps(req)) parts.push("Secure");
+  reply.header("Set-Cookie", parts.join("; "));
+}
+
+function clearCookie(reply, req, name) {
+  setCookie(reply, req, name, "", 0);
+}
+
+function sessionFrom(req) {
+  const cookies = session.parseCookies(req.headers.cookie);
+  return session.verifySessionCookie(cookies[session.COOKIE_NAME]);
+}
+
+function requireSession(req) {
+  const s = sessionFrom(req);
+  if (!s) {
+    const err = new Error("Login dulu.");
+    err.statusCode = 401;
+    throw err;
+  }
+  return s;
+}
+
+function safeReturnTo(raw) {
+  const value = String(raw || "");
+  if (!value.startsWith("/") || value.startsWith("//")) return "/";
+  return value;
 }
 
 async function readMultipart(req) {
@@ -172,7 +213,12 @@ async function build() {
 
   Object.keys(PAGE_FILES).forEach((route) => {
     const file = PAGE_FILES[route];
-    app.get(route, async (req, reply) => sendHtml(reply, file));
+    app.get(route, async (req, reply) => {
+      if (!PUBLIC_ROUTES.has(route) && !sessionFrom(req)) {
+        return reply.redirect("/auth/google?returnTo=" + encodeURIComponent(route));
+      }
+      return sendHtml(reply, file);
+    });
   });
 
   registerAssetRoute(app);
@@ -183,10 +229,75 @@ async function build() {
     sheets: !!process.env.GOOGLE_SHEETS_ID
   }));
 
-  app.post("/api/login", async (req) => {
+  app.get("/auth/google", async (req, reply) => {
+    if (!googleSignIn.hasCredentials()) {
+      const err = new Error("Google sign-in belum dikonfigurasi.");
+      err.statusCode = 503;
+      throw err;
+    }
+    const returnTo = safeReturnTo(req.query.returnTo);
+    const state = crypto.randomBytes(16).toString("hex");
+    setCookie(reply, req, "hepi_oauth_state", state + "|" + returnTo, 600);
+    return reply.redirect(googleSignIn.getAuthUrl(state));
+  });
+
+  app.get("/auth/google/callback", async (req, reply) => {
+    const cookies = session.parseCookies(req.headers.cookie);
+    const stored = String(cookies.hepi_oauth_state || "");
+    clearCookie(reply, req, "hepi_oauth_state");
+    const [storedState, storedReturnTo] = stored.split("|");
+    const returnTo = safeReturnTo(storedReturnTo);
+    const state = String(req.query.state || "");
+    const code = String(req.query.code || "");
+    if (!storedState || !session.timingSafeEqual(state, storedState)) {
+      return reply.redirect("/?ssoError=state");
+    }
+    if (!code) {
+      return reply.redirect("/?ssoError=state");
+    }
+
+    let profile;
+    try {
+      profile = await googleSignIn.verifyCallback(code);
+    } catch (e) {
+      req.log.error(e);
+      return reply.redirect("/?ssoError=oauth");
+    }
+    if (!profile.emailVerified || !profile.email) {
+      return reply.redirect("/?ssoError=not_whitelisted");
+    }
+
     credsOrThrow();
-    const { agentCode, pin } = authFrom(req.body);
-    return agents.verifyAgentLogin(agentCode, pin);
+    const agent = await agents.findAgentByEmail(profile.email);
+    if (!agent || !agents.isAgentActive(agent)) {
+      return reply.redirect("/?ssoError=not_whitelisted");
+    }
+
+    const cookieValue = session.createSessionCookie({
+      agentCode: agent.kode,
+      nama: agent.nama || agent.kode,
+      status: agent.status || "",
+      email: profile.email
+    });
+    setCookie(reply, req, session.COOKIE_NAME, cookieValue, session.MAX_AGE_MS / 1000);
+    return reply.redirect(returnTo);
+  });
+
+  app.get("/auth/logout", async (req, reply) => {
+    clearCookie(reply, req, session.COOKIE_NAME);
+    return reply.redirect("/");
+  });
+
+  app.get("/api/me", async (req) => {
+    const s = sessionFrom(req);
+    if (!s) return { loggedIn: false };
+    return {
+      loggedIn: true,
+      agentCode: s.agentCode,
+      nama: s.nama,
+      status: s.status,
+      email: s.email
+    };
   });
 
   app.get("/api/listings", async () => {
@@ -197,8 +308,8 @@ async function build() {
   app.post("/api/sold", async (req) => {
     credsOrThrow();
     const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    const status = await listings.markAsSold(body.fileId, agentCode, pin);
+    const { agentCode } = requireSession(req);
+    const status = await listings.markAsSold(body.fileId, agentCode);
     return { status };
   });
 
@@ -216,10 +327,10 @@ async function build() {
   app.post("/api/agents", async (req) => {
     credsOrThrow();
     const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
+    const { agentCode } = requireSession(req);
     const which = String(body.for || "listing").toLowerCase();
-    if (which === "closing") return activity.getActiveAgentsForClosing(agentCode, pin);
-    return listings.getActiveAgentsForListing(agentCode, pin);
+    if (which === "closing") return activity.getActiveAgentsForClosing(agentCode);
+    return listings.getActiveAgentsForListing(agentCode);
   });
 
   app.post("/api/input-listing", async (req) => {
@@ -227,89 +338,85 @@ async function build() {
     const isMulti = typeof req.isMultipart === "function" && req.isMultipart();
     if (isMulti) {
       const { fields, files } = await readMultipart(req);
-      const { agentCode, pin } = authFrom(fields);
-      return listings.submitOneListing(agentCode, pin, fields, files);
+      const { agentCode } = requireSession(req);
+      return listings.submitOneListing(agentCode, fields, files);
     }
     const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return listings.submitOneListing(agentCode, pin, body, {});
+    const { agentCode } = requireSession(req);
+    return listings.submitOneListing(agentCode, body, {});
   });
 
   app.post("/api/activity", async (req) => {
     credsOrThrow();
     const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return activity.submitDailyActivity(agentCode, pin, body);
+    const { agentCode } = requireSession(req);
+    return activity.submitDailyActivity(agentCode, body);
   });
 
   app.post("/api/activity/check", async (req) => {
     credsOrThrow();
     const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return activity.checkDailyActivityDate(agentCode, pin, body.tanggal);
+    const { agentCode } = requireSession(req);
+    return activity.checkDailyActivityDate(agentCode, body.tanggal);
   });
 
   app.post("/api/scores", async (req) => {
     credsOrThrow();
-    const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return activity.getMonthlyAgentScores(agentCode, pin);
+    const { agentCode } = requireSession(req);
+    return activity.getMonthlyAgentScores(agentCode);
   });
 
   app.post("/api/history", async (req) => {
     credsOrThrow();
-    const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return activity.getAgentMonthHistory(agentCode, pin);
+    const { agentCode } = requireSession(req);
+    return activity.getAgentMonthHistory(agentCode);
   });
 
   app.post("/api/closings", async (req) => {
     credsOrThrow();
     const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return activity.submitClosings(agentCode, pin, body);
+    const { agentCode } = requireSession(req);
+    return activity.submitClosings(agentCode, body);
   });
 
   app.post("/api/form-listing/submit", async (req) => {
     credsOrThrow();
     const { fields, files } = await readMultipart(req);
-    const { agentCode, pin } = authFrom(fields);
-    return formListing.submitOneForm(agentCode, pin, fields, files);
+    const { agentCode } = requireSession(req);
+    return formListing.submitOneForm(agentCode, fields, files);
   });
 
   app.post("/api/form-listing/mine", async (req) => {
     credsOrThrow();
-    const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return formListing.listForAgent(agentCode, pin);
+    const { agentCode } = requireSession(req);
+    return formListing.listForAgent(agentCode);
   });
 
   app.post("/api/form-listing/queue", async (req) => {
     credsOrThrow();
-    const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return formListing.listForAdmin(agentCode, pin);
+    const { agentCode } = requireSession(req);
+    return formListing.listForAdmin(agentCode);
   });
 
   app.post("/api/form-listing/feedback", async (req) => {
     credsOrThrow();
     const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return formListing.giveFeedback(agentCode, pin, body.fileId, body.feedback);
+    const { agentCode } = requireSession(req);
+    return formListing.giveFeedback(agentCode, body.fileId, body.feedback);
   });
 
   app.post("/api/form-listing/done", async (req) => {
     credsOrThrow();
     const body = req.body || {};
-    const { agentCode, pin } = authFrom(body);
-    return formListing.markDone(agentCode, pin, body.fileId);
+    const { agentCode } = requireSession(req);
+    return formListing.markDone(agentCode, body.fileId);
   });
 
   app.post("/api/form-listing/edit", async (req) => {
     credsOrThrow();
     const { fields, files } = await readMultipart(req);
-    const { agentCode, pin } = authFrom(fields);
-    return formListing.editSubmission(agentCode, pin, fields.fileId, fields, files);
+    const { agentCode } = requireSession(req);
+    return formListing.editSubmission(agentCode, fields.fileId, fields, files);
   });
 
   app.get("/api/cron/import", async (req, reply) => {
