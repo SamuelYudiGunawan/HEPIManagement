@@ -9,7 +9,6 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="icon" href="/icons/icon-192.png">
   <title>HEPI PROPERTY LISTINGS 🏠</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
   <script>
     try {
       var _hepiText = localStorage.getItem("hepi_textSize");
@@ -2437,7 +2436,22 @@
       try {
         const shareUrl = getShareUrl(fileId);
 
-        // Fetch narrative in parallel with image capture
+        // Fetch the real property photo (not a screenshot of the card UI)
+        // and the narrative text in parallel. This also matters for iOS:
+        // Safari only allows navigator.share() while the tap's "user
+        // activation" is still active, and a slow rendering step (this used
+        // to be an html2canvas screenshot of the whole card) can eat that
+        // window and make Safari silently refuse the share — a plain image
+        // fetch is far faster.
+        const cardEl = document.getElementById("card-" + fileId);
+        const imgEl = cardEl ? cardEl.querySelector("img[data-proxy-src]") : null;
+
+        const imagePromise = imgEl
+          ? fetch(imgEl.dataset.proxySrc)
+              .then(function(res) { return res.ok ? res.blob() : null; })
+              .catch(function() { return null; })
+          : Promise.resolve(null);
+
         const narrativePromise = hepiApi("/api/narrative/" + encodeURIComponent(fileId))
           .then(function(res) {
             if (res && res.success && res.content) return parseNarrative(res.content) || "";
@@ -2445,30 +2459,11 @@
           })
           .catch(function() { return ""; });
 
-        // Capture the card element as an image
-        const cardEl = document.getElementById("card-" + fileId);
-        let imageFile = null;
+        const results = await Promise.all([imagePromise, narrativePromise]);
+        const blob = results[0];
+        const narasi = results[1];
+        const imageFile = blob ? new File([blob], "hepi-properti.jpg", { type: blob.type || "image/jpeg" }) : null;
 
-        if (cardEl && typeof html2canvas === "function") {
-          // Swap img src to proxied URL so html2canvas can draw it cross-origin
-          const imgs = cardEl.querySelectorAll("img[data-proxy-src]");
-          const origSrcs = [];
-          imgs.forEach(function(img) {
-            origSrcs.push(img.src);
-            img.src = img.dataset.proxySrc;
-          });
-
-          try {
-            const canvas = await html2canvas(cardEl, { useCORS: true, scale: 2, logging: false });
-            const blob = await new Promise(function(res) { canvas.toBlob(res, "image/png"); });
-            if (blob) imageFile = new File([blob], "hepi-properti.png", { type: "image/png" });
-          } catch (e) { /* silently ignore capture errors */ }
-
-          // Restore original src
-          imgs.forEach(function(img, i) { img.src = origSrcs[i]; });
-        }
-
-        const narasi = await narrativePromise;
         const shareText = narasi ? narasi + "\n\n" + shareUrl : shareUrl;
 
         if (navigator.share) {
