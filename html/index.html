@@ -1562,7 +1562,7 @@
 
     const _idMatch = String(new URLSearchParams(location.search).get("id") || "").match(/^[A-Za-z0-9_-]+/);
     const INITIAL_ID = _idMatch ? _idMatch[0] : "";
-    const SCRIPT_URL = "/";
+    const SCRIPT_URL = window.location.origin + "/";
     const isDetailMode = !!INITIAL_ID;
 
     let ALL_DATA = [];

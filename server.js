@@ -228,7 +228,10 @@ async function build() {
     const file = PAGE_FILES[route];
     app.get(route, async (req, reply) => {
       if (!PUBLIC_ROUTES.has(route) && !sessionFrom(req)) {
-        return reply.redirect("/auth/google?returnTo=" + encodeURIComponent(route));
+        // req.url (not the bare route) so a shared detail link's query
+        // string (e.g. "/?id=xxxx") survives the login round-trip instead
+        // of dropping the visitor onto the generic search page afterward.
+        return reply.redirect("/auth/google?returnTo=" + encodeURIComponent(req.url));
       }
       return sendHtml(reply, file);
     });
