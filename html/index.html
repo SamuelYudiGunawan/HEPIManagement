@@ -2464,12 +2464,21 @@
         const narasi = results[1];
         const imageFile = blob ? new File([blob], "hepi-properti.jpg", { type: blob.type || "image/jpeg" }) : null;
 
-        const shareText = narasi ? narasi + "\n\n" + shareUrl : shareUrl;
+        // No link in the shared text — Instagram (the main reason for
+        // this) doesn't even accept a "text" field on a native share at
+        // all, so the caption also gets copied to the clipboard: share the
+        // photo, then just paste this in as the caption.
+        const shareText = narasi || "";
 
         if (navigator.share) {
           const shareData = { title: "Properti HEPI", text: shareText };
           if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
             shareData.files = [imageFile];
+          }
+          if (shareText && navigator.clipboard && navigator.clipboard.writeText) {
+            // Fire-and-forget: not awaited, so it can't eat into iOS's
+            // narrow user-activation window for navigator.share() below.
+            navigator.clipboard.writeText(shareText).catch(function() {});
           }
           await navigator.share(shareData);
         } else {
