@@ -334,6 +334,17 @@ async function build() {
     return listings.getNarrativeText(req.params.id);
   });
 
+  app.get("/api/img-thumb/:id", async (req, reply) => {
+    const id = req.params.id;
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) return reply.code(400).send("bad id");
+    const resp = await fetch(`https://lh3.googleusercontent.com/d/${id}=w600`);
+    if (!resp.ok) return reply.code(502).send("upstream error");
+    const buf = await resp.arrayBuffer();
+    reply.header("Content-Type", resp.headers.get("content-type") || "image/jpeg");
+    reply.header("Cache-Control", "public, max-age=3600");
+    return reply.send(Buffer.from(buf));
+  });
+
   app.post("/api/narratives", async (req) => {
     credsOrThrow();
     const ids = (req.body && req.body.fileIds) || [];

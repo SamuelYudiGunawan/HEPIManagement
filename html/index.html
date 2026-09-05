@@ -9,6 +9,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="icon" href="/icons/icon-192.png">
   <title>HEPI PROPERTY LISTINGS 🏠</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
   <script>
     try {
       var _hepiText = localStorage.getItem("hepi_textSize");
@@ -342,6 +343,13 @@
 
   .soldBtn {
     color: #ff4d73 !important;
+    background: #fff !important;
+    border: 1px solid #ececff !important;
+  }
+
+  .shareBtn {
+    grid-column: 1 / -1;
+    color: #5f69ff !important;
     background: #fff !important;
     border: 1px solid #ececff !important;
   }
@@ -1979,6 +1987,7 @@
           <a href="https://drive.google.com/file/d/${escapeHtml(x.thumbnail)}/view" target="_blank">
           <img class="thumb"
           src="https://lh3.googleusercontent.com/d/${escapeHtml(x.thumbnail)}=w600"
+          data-proxy-src="/api/img-thumb/${escapeHtml(x.thumbnail)}"
           alt="thumbnail"
           loading="lazy"
           decoding="async"
@@ -2052,6 +2061,12 @@
         onclick="markSold(this.dataset.fid)"
         data-fid="${escapeHtml(x.fileId)}"
       >⛔ ${soldLabel}</button>
+
+      <button
+        class="shareBtn"
+        onclick="shareCard(this.dataset.fid, this)"
+        data-fid="${escapeHtml(x.fileId)}"
+      >📤 SHARE</button>
     </div>
   </div>
 `;
@@ -2410,6 +2425,76 @@
           btnElement.disabled = false;
           showMessage("️ Error: " + (err && err.message ? err.message : String(err)));
         });
+    }
+
+    async function shareCard(fileId, btnEl) {
+      if (!fileId) { showMessage("⚠️ File ID tidak ditemukan."); return; }
+
+      const originalText = btnEl.innerHTML;
+      btnEl.innerHTML = "⏳";
+      btnEl.disabled = true;
+
+      try {
+        const shareUrl = getShareUrl(fileId);
+
+        // Fetch narrative in parallel with image capture
+        const narrativePromise = hepiApi("/api/narrative/" + encodeURIComponent(fileId))
+          .then(function(res) {
+            if (res && res.success && res.content) return parseNarrative(res.content) || "";
+            return "";
+          })
+          .catch(function() { return ""; });
+
+        // Capture the card element as an image
+        const cardEl = document.getElementById("card-" + fileId);
+        let imageFile = null;
+
+        if (cardEl && typeof html2canvas === "function") {
+          // Swap img src to proxied URL so html2canvas can draw it cross-origin
+          const imgs = cardEl.querySelectorAll("img[data-proxy-src]");
+          const origSrcs = [];
+          imgs.forEach(function(img) {
+            origSrcs.push(img.src);
+            img.src = img.dataset.proxySrc;
+          });
+
+          try {
+            const canvas = await html2canvas(cardEl, { useCORS: true, scale: 2, logging: false });
+            const blob = await new Promise(function(res) { canvas.toBlob(res, "image/png"); });
+            if (blob) imageFile = new File([blob], "hepi-properti.png", { type: "image/png" });
+          } catch (e) { /* silently ignore capture errors */ }
+
+          // Restore original src
+          imgs.forEach(function(img, i) { img.src = origSrcs[i]; });
+        }
+
+        const narasi = await narrativePromise;
+        const shareText = narasi ? narasi + "\n\n" + shareUrl : shareUrl;
+
+        if (navigator.share) {
+          const shareData = { title: "Properti HEPI", text: shareText };
+          if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
+            shareData.files = [imageFile];
+          }
+          await navigator.share(shareData);
+        } else {
+          // Desktop fallback: copy link to clipboard
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(shareUrl);
+          } else {
+            fallbackCopyText(shareUrl, "✅ Link disalin!");
+          }
+          showMessage("✅ Link disalin! (Share API tidak tersedia di browser ini)");
+        }
+      } catch (err) {
+        // AbortError = user cancelled the share sheet — not an error
+        if (err && err.name !== "AbortError") {
+          showMessage("⚠️ Share gagal: " + (err.message || String(err)));
+        }
+      } finally {
+        btnEl.innerHTML = originalText;
+        btnEl.disabled = false;
+      }
     }
 
     function fallbackCopyText(text, successMsg) {
