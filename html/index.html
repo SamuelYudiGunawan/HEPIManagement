@@ -320,9 +320,10 @@
     box-shadow: 0 6px 16px rgba(95, 105, 255, 0.22);
   }
 
-  /* detail button occupies its own full-width row above the other 4 */
+  /* PERBESAR + SHARE share one row (half-width each) instead of each
+     taking a full-width row of their own */
   .detailBtn {
-    grid-column: 1 / -1;
+    grid-column: span 2;
     color: #1565c0 !important;
   }
 
@@ -347,7 +348,7 @@
   }
 
   .shareBtn {
-    grid-column: 1 / -1;
+    grid-column: span 2;
     color: #5f69ff !important;
     background: #fff !important;
     border: 1px solid #ececff !important;
@@ -2036,6 +2037,12 @@
       >🔍 PERBESAR</a>
       `}
 
+      <button
+        class="shareBtn"
+        onclick="shareCard(this.dataset.fid, this)"
+        data-fid="${escapeHtml(x.fileId)}"
+      >📤 SHARE</button>
+
       <a
         class="waBtn ${waDisabled ? "disabledBtn" : ""}"
         target="_blank"
@@ -2060,12 +2067,6 @@
         onclick="markSold(this.dataset.fid)"
         data-fid="${escapeHtml(x.fileId)}"
       >⛔ ${soldLabel}</button>
-
-      <button
-        class="shareBtn"
-        onclick="shareCard(this.dataset.fid, this)"
-        data-fid="${escapeHtml(x.fileId)}"
-      >📤 SHARE</button>
     </div>
   </div>
 `;
