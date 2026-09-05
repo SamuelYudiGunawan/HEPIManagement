@@ -166,6 +166,60 @@ function safeReturnTo(raw) {
   return value;
 }
 
+// WhatsApp's own server fetches a shared link to build its chat preview
+// card — anonymously, no cookies — so it would otherwise just hit the
+// login redirect and never see the listing. This lets ONLY that specific
+// crawler read a listing's title/photo via Open Graph tags; every real
+// visitor (any other User-Agent) still goes through the full login gate
+// untouched.
+const WHATSAPP_BOT_UA_RE = /whatsapp/i;
+
+function isWhatsAppBot(req) {
+  return WHATSAPP_BOT_UA_RE.test(String(req.headers["user-agent"] || ""));
+}
+
+function escapeHtmlAttr(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+async function sendListingPreview(req, reply, fileId) {
+  let item = null;
+  try {
+    credsOrThrow();
+    const list = await listings.getListings();
+    item = list.find((x) => String(x.fileId) === String(fileId)) || null;
+  } catch (e) {
+    item = null;
+  }
+
+  const title = item
+    ? (item.tipe || "Properti") + " di " + (item.area || "") + " — Rp " + Number(item.harga || 0).toLocaleString("id-ID")
+    : "HEPI Property Listings";
+  const description = item
+    ? [item.kategori, item.tipe, item.area].filter(Boolean).join(" ")
+    : "Cari listing properti di HEPI Property.";
+  const image = item && item.thumbnail
+    ? "https://lh3.googleusercontent.com/d/" + encodeURIComponent(item.thumbnail) + "=w1600"
+    : "";
+  const url = req.protocol + "://" + req.headers.host + "/?id=" + encodeURIComponent(fileId);
+
+  const html = "<!doctype html>\n<html><head>\n"
+    + '<meta charset="utf-8">\n'
+    + '<meta property="og:type" content="website">\n'
+    + '<meta property="og:title" content="' + escapeHtmlAttr(title) + '">\n'
+    + '<meta property="og:description" content="' + escapeHtmlAttr(description) + '">\n'
+    + (image ? '<meta property="og:image" content="' + escapeHtmlAttr(image) + '">\n' : "")
+    + '<meta property="og:url" content="' + escapeHtmlAttr(url) + '">\n'
+    + "<title>" + escapeHtmlAttr(title) + "</title>\n"
+    + "</head><body></body></html>";
+
+  return reply.type("text/html; charset=utf-8").send(html);
+}
+
 async function readMultipart(req) {
   const fields = {};
   const files = {};
@@ -227,6 +281,9 @@ async function build() {
   Object.keys(PAGE_FILES).forEach((route) => {
     const file = PAGE_FILES[route];
     app.get(route, async (req, reply) => {
+      if (route === "/" && req.query.id && isWhatsAppBot(req)) {
+        return sendListingPreview(req, reply, req.query.id);
+      }
       if (!PUBLIC_ROUTES.has(route) && !sessionFrom(req)) {
         // req.url (not the bare route) so a shared detail link's query
         // string (e.g. "/?id=xxxx") survives the login round-trip instead
