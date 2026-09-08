@@ -17,6 +17,7 @@ const listings = require("./lib/listings");
 const activity = require("./lib/activity");
 const importer = require("./lib/import");
 const formListing = require("./lib/formListing");
+const revision = require("./lib/revision");
 const { hashFile } = require("./lib/assetVersion");
 const session = require("./lib/session");
 const googleSignIn = require("./lib/googleSignIn");
@@ -32,7 +33,9 @@ const PAGE_FILES = {
   "/closing": "closing.html",
   "/inputlisting": "inputlisting.html",
   "/form-listing": "formlisting.html",
-  "/form-listing-review": "formlistingreview.html"
+  "/form-listing-review": "formlistingreview.html",
+  "/revisi-listing": "revisilisting.html",
+  "/revisi-review": "revisireview.html"
 };
 
 // Every page requires login, including "/" — an unauthenticated visitor is
@@ -501,6 +504,73 @@ async function build() {
     const { fields, files } = await readMultipart(req);
     const { agentCode } = requireSession(req);
     return formListing.editSubmission(agentCode, fields.fileId, fields, files);
+  });
+
+  function parsePerubahan(raw) {
+    try {
+      const parsed = JSON.parse(raw || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  app.post("/api/revision/submit", async (req) => {
+    credsOrThrow();
+    const { fields, files } = await readMultipart(req);
+    const { agentCode } = requireSession(req);
+    return revision.submitRevision(
+      agentCode,
+      fields.targetFileId,
+      parsePerubahan(fields.perubahan),
+      fields.catatan,
+      files
+    );
+  });
+
+  app.post("/api/revision/mine", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    return revision.listForAgent(agentCode);
+  });
+
+  app.post("/api/revision/queue", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    return revision.listForAdmin(agentCode);
+  });
+
+  app.post("/api/revision/feedback", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode } = requireSession(req);
+    return revision.giveFeedback(agentCode, body.revisionId, body.feedback);
+  });
+
+  app.post("/api/revision/apply", async (req) => {
+    credsOrThrow();
+    const { fields, files } = await readMultipart(req);
+    const { agentCode } = requireSession(req);
+    return revision.applyRevision(
+      agentCode,
+      fields.revisionId,
+      parsePerubahan(fields.perubahan),
+      files
+    );
+  });
+
+  app.post("/api/listings/reassign-agent", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode } = requireSession(req);
+    return listings.reassignAgent(agentCode, body.fileId, body.newKodeAgen);
+  });
+
+  app.post("/api/listings/delete", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode } = requireSession(req);
+    return listings.deleteListing(agentCode, body.fileId);
   });
 
   app.get("/api/cron/import", async (req, reply) => {

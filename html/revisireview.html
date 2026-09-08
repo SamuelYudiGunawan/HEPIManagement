@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>Review Revisi</title>
+  <link rel="stylesheet" href="/styles-v2.css">
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/hepi-auth.js"></script>
+  <script src="/js/textsize.js"></script>
+  <style>
+    .revisiCard { border: 1px solid #ececff; border-radius: 14px; padding: 14px; margin-bottom: 12px; background: #fff; }
+    .revisiCardHead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+    .revisiFieldRow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+    .revisiFieldRow label { min-width: 110px; font-weight: 700; font-size: 13px; }
+    .revisiOld { color: #999; text-decoration: line-through; font-size: 13px; }
+    .revisiNewInput { flex: 1; min-width: 120px; }
+    .revisiPhotoRow { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+    .revisiCatatan { font-size: 13px; color: #555; margin: 8px 0; }
+    .revisiActions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div id="loginModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>VERIFIKASI AKSES AGEN</h2>
+      <div class="sold-text" style="margin-bottom:10px;">Login admin/adminkantor untuk review Revisi</div>
+      <div class="sold-buttons">
+        <button id="btnSubmitLogin" onclick="hepiAuth.login()" style="background:#1565c0;">Login dengan Google</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="previewModal" class="previewModal" onclick="if (event.target === this) closePreview();">
+    <div class="previewBox">
+      <button type="button" class="previewClose" onclick="closePreview()">Tutup ✕</button>
+      <div id="previewBody" class="previewBody"></div>
+    </div>
+  </div>
+
+  <div id="feedbackModal" class="sold-modal">
+    <div class="sold-box" style="text-align:left;">
+      <h2 style="text-align:center;">Feedback</h2>
+      <textarea id="feedbackText" placeholder="Tulis feedback untuk agen..."></textarea>
+      <div class="sold-buttons" style="margin-top:14px;">
+        <button type="button" class="btnSecondary" onclick="closeFeedbackModal()">Batal</button>
+        <button type="button" onclick="submitFeedbackModal()">Kirim</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="siteNav">
+    <nav class="appNav">
+      <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+      <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+      <a class="appNavLink" href="/scores" target="_top">Skor</a>
+      <a class="appNavLink" href="/history" target="_top">History</a>
+      <a class="appNavLink" href="/form-listing" target="_top">Tambah Listing</a>
+      <a class="appNavLink active" href="/revisi-listing" target="_top">Revisi</a>
+    </nav>
+    <button class="headerLogout" onclick="doLogout()">Logout</button>
+  </div>
+
+  <div class="pageWrap">
+    <div id="deniedBox" class="filterBox" style="display:none;">
+      <div class="emptyState">Hanya admin atau adminkantor yang bisa akses halaman Review Revisi.</div>
+    </div>
+
+    <div id="queueBox" class="filterBox" style="display:none;">
+      <div class="filterTitle">Antrian Revisi Listing</div>
+      <div id="queueArea"></div>
+    </div>
+  </div>
+
+<script>
+  let queueRows = [];
+  let doneVisible = false;
+  let feedbackTargetId = null;
+
+  function $(id) { return document.getElementById(id); }
+  function safeStr(v) { return String(v == null ? "" : v); }
+  function escapeHtml(str) {
+    return safeStr(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function isReviewer() { return hepiAuth.isListingEditor(); }
+  function openLogin() { $("loginModal").style.display = "block"; }
+  function closeLogin() { $("loginModal").style.display = "none"; }
+  function doLogout() { hepiAuth.logout(); }
+
+  function showDenied() {
+    $("deniedBox").style.display = "block";
+    $("queueBox").style.display = "none";
+  }
+  function showQueue() {
+    $("deniedBox").style.display = "none";
+    $("queueBox").style.display = "block";
+  }
+
+  function openPreview(fileId) {
+    $("previewBody").innerHTML = '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w1600" alt="preview">';
+    $("previewModal").style.display = "block";
+  }
+  function closePreview() {
+    $("previewModal").style.display = "none";
+    $("previewBody").innerHTML = "";
+  }
+
+  function openFeedbackModal(revisionId) {
+    const row = queueRows.find(function(r) { return r.revisionId === revisionId; });
+    feedbackTargetId = revisionId;
+    $("feedbackText").value = (row && row.feedback) || "";
+    $("feedbackModal").style.display = "block";
+  }
+  function closeFeedbackModal() {
+    $("feedbackModal").style.display = "none";
+    feedbackTargetId = null;
+  }
+  function submitFeedbackModal() {
+    const text = safeStr($("feedbackText").value).trim();
+    if (!text) { alert("Isi feedback dulu sebelum dikirim."); return; }
+    hepiApi("/api/revision/feedback", { body: { revisionId: feedbackTargetId, feedback: text } })
+      .then(function() { closeFeedbackModal(); loadQueue(); })
+      .catch(function(err) { alert(err && err.message ? err.message : String(err)); });
+  }
+
+  function statusPillHtml(status) {
+    const s = safeStr(status);
+    const cls = s === "selesai" ? "queueStatusSelesai" : (s === "revisi" ? "queueStatusRevisi" : "queueStatusPending");
+    const label = s === "selesai" ? "Selesai" : (s === "revisi" ? "Perlu Revisi" : "Menunggu");
+    return '<span class="' + cls + '">' + escapeHtml(label) + '</span>';
+  }
+
+  function fieldRowHtml(p, idx) {
+    return '<div class="revisiFieldRow" data-field="' + escapeHtml(p.field) + '">'
+      + '<label>' + escapeHtml(p.label || p.field) + '</label>'
+      + '<span class="revisiOld">' + escapeHtml(p.nilaiLama || '-') + '</span>'
+      + '<span>→</span>'
+      + '<input class="revisiNewInput" value="' + escapeHtml(p.nilaiBaru || '') + '">'
+      + '</div>';
+  }
+
+  function cardHtml(r) {
+    const isDone = r.status === "selesai";
+    const fieldsHtml = (r.perubahan || []).map(fieldRowHtml).join('')
+      || '<div class="smallHint">Tidak ada perubahan field terstruktur — lihat catatan.</div>';
+    return '<div class="revisiCard" data-revision-id="' + escapeHtml(r.revisionId) + '">'
+      + '<div class="revisiCardHead">'
+      + '<div><b>' + escapeHtml(r.namaListing || r.fileId) + '</b> — ' + escapeHtml(r.kodeAgen) + ' (' + escapeHtml(r.namaAgen) + ')'
+      + '<div class="smallHint">' + escapeHtml((r.dateCreated || '').slice(0, 10)) + '</div></div>'
+      + statusPillHtml(r.status)
+      + '</div>'
+      + '<div class="revisiFields">' + fieldsHtml + '</div>'
+      + '<div class="revisiPhotoRow">'
+      + (r.fotoBaruId
+          ? '<button type="button" class="queueIconBtn" title="Lihat foto referensi dari agen" onclick="openPreview(\'' + escapeHtml(r.fotoBaruId) + '\')">📷 Referensi agen</button>'
+          : '<span class="smallHint">Tidak ada foto referensi dari agen</span>')
+      + (isDone ? '' : '<label class="smallHint">Upload foto baru (opsional): <input type="file" class="revisiFotoInput" accept="image/*"></label>')
+      + '</div>'
+      + (r.catatan ? '<div class="revisiCatatan"><b>Catatan:</b> ' + escapeHtml(r.catatan) + '</div>' : '')
+      + (r.feedback ? '<div class="revisiCatatan"><b>Feedback:</b> ' + escapeHtml(r.feedback) + '</div>' : '')
+      + '<div class="revisiActions">'
+      + (isDone ? '' :
+          '<button type="button" onclick="applyRevision(\'' + escapeHtml(r.revisionId) + '\', this)">✅ Terapkan</button>'
+          + '<button type="button" class="btnSecondary" onclick="openFeedbackModal(\'' + escapeHtml(r.revisionId) + '\')">💬 Feedback</button>')
+      + '</div>'
+      + '</div>';
+  }
+
+  function renderQueue() {
+    if (!queueRows.length) {
+      $("queueArea").innerHTML = '<div class="emptyState">Belum ada revisi diajukan.</div>';
+      return;
+    }
+    const active = queueRows.filter(function(r) { return r.status !== "selesai"; });
+    const done = queueRows.filter(function(r) { return r.status === "selesai"; });
+
+    let html = active.length ? active.map(cardHtml).join('') : '<div class="emptyState">Tidak ada yang perlu direview.</div>';
+
+    if (done.length) {
+      html += '<button type="button" class="btnSecondary" style="margin-top:14px;" onclick="toggleDone()">'
+        + (doneVisible ? "▾ Sembunyikan" : "▸ Tampilkan") + ' ' + done.length + ' Selesai</button>';
+      if (doneVisible) html += '<div style="margin-top:10px;">' + done.map(cardHtml).join('') + '</div>';
+    }
+    $("queueArea").innerHTML = html;
+  }
+
+  function toggleDone() {
+    doneVisible = !doneVisible;
+    renderQueue();
+  }
+
+  function loadQueue() {
+    showQueue();
+    $("queueArea").innerHTML = '<div class="emptyState">Memuat...</div>';
+    hepiApi("/api/revision/queue", { body: {} })
+      .then(function(res) {
+        queueRows = (res && res.rows) || [];
+        renderQueue();
+      })
+      .catch(function(err) {
+        const msg = err && err.message ? err.message : String(err);
+        $("queueArea").innerHTML = '<div class="emptyState">' + escapeHtml(msg) + '</div>';
+        if (/admin|akses/i.test(msg)) showDenied();
+        if (/login/i.test(msg)) openLogin();
+      });
+  }
+
+  function applyRevision(revisionId, btnEl) {
+    const card = document.querySelector('.revisiCard[data-revision-id="' + revisionId.replace(/"/g, '') + '"]');
+    if (!card) return;
+
+    const perubahan = Array.prototype.slice.call(card.querySelectorAll('.revisiFieldRow')).map(function(row) {
+      return {
+        field: row.getAttribute('data-field'),
+        nilaiBaru: row.querySelector('.revisiNewInput').value
+      };
+    }).filter(function(p) { return p.nilaiBaru && String(p.nilaiBaru).trim(); });
+
+    const fotoInput = card.querySelector('.revisiFotoInput');
+    const fotoFile = fotoInput && fotoInput.files && fotoInput.files[0];
+
+    if (!confirm(fotoFile || perubahan.length ? "Terapkan perubahan ini ke listing?" : "Tandai revisi ini selesai (tanpa perubahan otomatis)?")) return;
+
+    const original = btnEl.innerHTML;
+    btnEl.disabled = true;
+    btnEl.innerHTML = "Memproses...";
+
+    const fd = new FormData();
+    fd.append("revisionId", revisionId);
+    fd.append("perubahan", JSON.stringify(perubahan));
+    if (fotoFile) fd.append("foto", fotoFile, fotoFile.name);
+
+    hepiApi("/api/revision/apply", { formData: fd })
+      .then(function() { loadQueue(); })
+      .catch(function(err) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = original;
+        alert(err && err.message ? err.message : String(err));
+      });
+  }
+
+  function applyAccess() {
+    if (!hepiAuth.isLoggedIn()) {
+      $("deniedBox").style.display = "none";
+      $("queueBox").style.display = "none";
+      openLogin();
+      return;
+    }
+    if (!isReviewer()) {
+      showDenied();
+      return;
+    }
+    loadQueue();
+  }
+
+  hepiAuth.onReady(applyAccess);
+</script>
+</body>
+</html>

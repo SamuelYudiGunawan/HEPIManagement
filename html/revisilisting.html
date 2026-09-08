@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>Riwayat Revisi</title>
+  <link rel="stylesheet" href="/styles-v2.css">
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/hepi-auth.js"></script>
+  <script src="/js/textsize.js"></script>
+  <script>
+    try {
+      var _hepiText = localStorage.getItem("hepi_textSize");
+      if (_hepiText === "large" || _hepiText === "xlarge") {
+        document.documentElement.setAttribute("data-text-size", _hepiText);
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="messageModal" class="sold-modal">
+    <div class="sold-box">
+      <div id="messageText" class="sold-text"></div>
+      <button onclick="closeMessage()">OK</button>
+    </div>
+  </div>
+
+  <div id="previewModal" class="previewModal" onclick="if (event.target === this) closePreview();">
+    <div class="previewBox">
+      <button type="button" class="previewClose" onclick="closePreview()">Tutup ✕</button>
+      <div id="previewBody" class="previewBody"></div>
+    </div>
+  </div>
+
+  <div class="siteNav">
+    <nav class="appNav">
+      <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+      <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+      <a class="appNavLink" href="/scores" target="_top">Skor</a>
+      <a class="appNavLink" href="/history" target="_top">History</a>
+      <a class="appNavLink" href="/form-listing" target="_top">Tambah Listing</a>
+      <a class="appNavLink active" href="/revisi-listing" target="_top">Revisi</a>
+    </nav>
+    <button class="headerLogout" onclick="doLogout()">Logout</button>
+  </div>
+  <div class="textSizeBar" role="group" aria-label="Ukuran teks">
+    <span class="textSizeLabel">Ukuran Font</span>
+    <button type="button" class="textSizeBtn" data-text-size-btn="normal">N</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="large">L</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="xlarge">XL</button>
+  </div>
+
+  <div class="pageWrap">
+    <div class="filterBox">
+      <div class="filterTitle">Riwayat Revisi Saya</div>
+      <div class="smallHint" style="margin-bottom:10px;">Ajukan revisi (turun/naik harga, update foto, dll) lewat tombol ✏️ REVISI di halaman Cari Listing.</div>
+      <div id="historyArea"></div>
+    </div>
+  </div>
+
+<script>
+  function $(id) { return document.getElementById(id); }
+  function safeStr(v) { return String(v == null ? "" : v); }
+  function escapeHtml(str) {
+    return safeStr(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function showMessage(msg) {
+    $("messageText").textContent = msg;
+    $("messageModal").style.display = "block";
+  }
+  function closeMessage() { $("messageModal").style.display = "none"; }
+
+  function openPreview(fileId) {
+    $("previewBody").innerHTML = '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w1600" alt="preview">';
+    $("previewModal").style.display = "block";
+  }
+  function closePreview() {
+    $("previewModal").style.display = "none";
+    $("previewBody").innerHTML = "";
+  }
+
+  function doLogout() { hepiAuth.logout(); }
+
+  function statusPillHtml(status) {
+    const s = safeStr(status);
+    const cls = s === "selesai" ? "queueStatusSelesai" : (s === "revisi" ? "queueStatusRevisi" : "queueStatusPending");
+    const label = s === "selesai" ? "Selesai" : (s === "revisi" ? "Perlu Revisi" : "Menunggu");
+    return '<span class="' + cls + '">' + escapeHtml(label) + '</span>';
+  }
+
+  function perubahanListHtml(perubahan) {
+    if (!Array.isArray(perubahan) || !perubahan.length) return '<span class="smallHint">-</span>';
+    return '<ul class="revisiFieldList">' + perubahan.map(function(p) {
+      return '<li><b>' + escapeHtml(p.label || p.field) + ':</b> '
+        + escapeHtml(p.nilaiLama || '-') + ' → ' + escapeHtml(p.nilaiBaru || '-') + '</li>';
+    }).join('') + '</ul>';
+  }
+
+  function rowHtml(r) {
+    return '<tr>'
+      + '<td>' + escapeHtml((r.dateCreated || '').slice(0, 10)) + '</td>'
+      + '<td>' + escapeHtml(r.namaListing || r.fileId) + '</td>'
+      + '<td>' + perubahanListHtml(r.perubahan) + '</td>'
+      + '<td>' + (r.fotoBaruId ? '<button type="button" class="queueIconBtn" title="Lihat foto" onclick="openPreview(\'' + escapeHtml(r.fotoBaruId) + '\')">📷</button>' : '—') + '</td>'
+      + '<td>' + (r.catatan ? escapeHtml(r.catatan) : '—') + '</td>'
+      + '<td>' + statusPillHtml(r.status) + '</td>'
+      + '<td>' + (r.feedback ? escapeHtml(r.feedback) : '—') + '</td>'
+      + '</tr>';
+  }
+
+  function tableHtml(rows) {
+    return '<table class="scoreTable queueTable"><thead><tr>'
+      + '<th>Tanggal</th><th>Listing</th><th>Perubahan</th><th>Foto</th><th>Catatan</th><th>Status</th><th>Feedback</th>'
+      + '</tr></thead><tbody>' + rows.map(rowHtml).join('') + '</tbody></table>';
+  }
+
+  function renderHistory(rows) {
+    if (!rows.length) {
+      $("historyArea").innerHTML = '<div class="emptyState">Belum ada revisi yang diajukan.</div>';
+      return;
+    }
+    $("historyArea").innerHTML = '<div class="scoreTableWrap">' + tableHtml(rows) + '</div>';
+  }
+
+  function loadMine() {
+    $("historyArea").innerHTML = '<div class="emptyState">Memuat...</div>';
+    hepiApi("/api/revision/mine", { body: {} })
+      .then(function(res) { renderHistory((res && res.rows) || []); })
+      .catch(function(err) {
+        const msg = err && err.message ? err.message : String(err);
+        $("historyArea").innerHTML = '<div class="emptyState">' + escapeHtml(msg) + '</div>';
+      });
+  }
+
+  hepiAuth.onReady(function() {
+    if (!hepiAuth.isLoggedIn()) {
+      hepiAuth.login();
+      return;
+    }
+    loadMine();
+  });
+</script>
+</body>
+</html>

@@ -284,14 +284,31 @@
     font-weight: 700;
   }
 
-  /* action buttons row */
+  /* action buttons — grouped into explicit rows (rather than one flat grid
+     with column-span tricks) so each row can hold a different number of
+     buttons depending on role: PERBESAR/SHARE/REVISI, then WA/TXT/FOLDER/
+     SOLD, then (adminkantor only) GANTI AGEN/TAKEDOWN */
   .actions {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 10px;
     padding: 10px 12px 12px;
     background: #fff;
   }
+
+  .actionsRow {
+    display: grid;
+    gap: 10px;
+  }
+
+  /* DETAIL and/or REVISI can each be conditionally absent (detail mode,
+     non-owner) — a fixed 3-column grid would leave a visible gap when
+     fewer than 3 buttons are actually present, so this row is flex-based
+     instead, splitting width evenly among however many buttons render. */
+  .actionsRow3 { display: flex; }
+  .actionsRow3 > a, .actionsRow3 > button { flex: 1; }
+  .actionsRow4 { grid-template-columns: repeat(4, 1fr); }
+  .actionsRow2 { grid-template-columns: repeat(2, 1fr); }
 
   .actions a,
   .actions button {
@@ -320,10 +337,7 @@
     box-shadow: 0 6px 16px rgba(95, 105, 255, 0.22);
   }
 
-  /* PERBESAR + SHARE share one row (half-width each) instead of each
-     taking a full-width row of their own */
   .detailBtn {
-    grid-column: span 2;
     color: #1565c0 !important;
   }
 
@@ -348,8 +362,25 @@
   }
 
   .shareBtn {
-    grid-column: span 2;
     color: #5f69ff !important;
+    background: #fff !important;
+    border: 1px solid #ececff !important;
+  }
+
+  .revisiBtn {
+    color: #8a5a00 !important;
+    background: #fff !important;
+    border: 1px solid #ececff !important;
+  }
+
+  .gantiAgenBtn {
+    color: #6b21a8 !important;
+    background: #fff !important;
+    border: 1px solid #ececff !important;
+  }
+
+  .takedownBtn {
+    color: #b91c1c !important;
     background: #fff !important;
     border: 1px solid #ececff !important;
   }
@@ -736,9 +767,11 @@
     }
 
     .actions {
-      grid-template-columns: repeat(4, 1fr) !important;
       gap: 6px !important;
       padding: 8px 10px 10px !important;
+    }
+    .actionsRow {
+      gap: 6px !important;
     }
 
     .actions a,
@@ -1220,6 +1253,45 @@
     </div>
   </div>
 
+  <!-- REVISI MODAL -->
+  <div id="revisiModal" class="sold-modal">
+    <div class="sold-box" style="text-align:left; max-width:480px;">
+      <h2 style="text-align:center;">✏️ Ajukan Revisi</h2>
+      <div id="revisiFieldRows"></div>
+      <div class="sold-buttons" style="margin:10px 0;">
+        <button type="button" style="background:#9ca3af;" onclick="addRevisiFieldRow()">+ Tambah Field</button>
+      </div>
+      <div class="specGroup" style="margin-top:6px;">
+        <div class="specLabel">Foto referensi (opsional)</div>
+        <input type="file" id="revisiFotoInput" accept="image/*">
+      </div>
+      <div class="specGroup" style="margin-top:10px;">
+        <div class="specLabel">Catatan</div>
+        <textarea id="revisiCatatan" placeholder="Jelaskan alasan/permintaan revisi..." style="width:100%; min-height:70px;"></textarea>
+      </div>
+      <div class="sold-buttons" style="margin-top:14px;">
+        <button type="button" style="background:#9ca3af;" onclick="closeRevisiModal()">Batal</button>
+        <button id="btnSubmitRevisi" onclick="submitRevisiModal()">Kirim</button>
+      </div>
+      <div id="revisiSubmitStatus" class="smallHint"></div>
+    </div>
+  </div>
+
+  <!-- GANTI AGEN MODAL -->
+  <div id="gantiAgenModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>🔄 Ganti Agen</h2>
+      <div class="specGroup" style="margin-bottom:14px;">
+        <div class="specLabel">Agen Baru</div>
+        <select id="gantiAgenSelect" style="width:100%;"></select>
+      </div>
+      <div class="sold-buttons">
+        <button type="button" style="background:#9ca3af;" onclick="closeGantiAgenModal()">Batal</button>
+        <button id="btnSubmitGantiAgen" onclick="submitGantiAgen()">Simpan</button>
+      </div>
+    </div>
+  </div>
+
   <div class="siteNav">
     <nav class="appNav">
       <a class="appNavLink active" href="/" target="_top">Cari Listing</a>
@@ -1227,6 +1299,7 @@
       <a class="appNavLink" href="/scores" target="_top">Skor</a>
       <a class="appNavLink" href="/history" target="_top">History</a>
       <a class="appNavLink" href="/form-listing" target="_top">Tambah Listing</a>
+      <a class="appNavLink" href="/revisi-listing" target="_top">Revisi</a>
     </nav>
     <button class="headerLogout" onclick="doLogout()">Logout</button>
   </div>
@@ -1641,6 +1714,16 @@
       return owner === normalizeText(hepiAuth.getNama());
     }
 
+    // Revision requests use a different bypass than SOLD: adminkantor (not
+    // admin) may request a revision for any listing — admin already has
+    // direct edit tools and doesn't need this queue for their own listings.
+    function canRequestRevision(item) {
+      if (hepiAuth.getStatus() === "adminkantor") return true;
+      const owner = normalizeText(item && item.agen);
+      if (!owner) return true;
+      return owner === normalizeText(hepiAuth.getNama());
+    }
+
     function askOwnerToMarkSold(item) {
       const message = getShareUrl(item.fileId) + "\n\nSetau saya ini sold, boleh bantu sold?";
       const waLink = buildWaLink(item.kontak, message);
@@ -2028,45 +2111,70 @@
     ${isDetailMode ? `<div class="narrativeBox" id="narrative-${escapeHtml(x.fileId)}">⏳ Memuat deskripsi lengkap...</div>` : ""}
 
     <div class="actions">
-      ${isDetailMode ? "" : `
-      <a
-        class="detailBtn"
-        target="_top"
-        onclick="saveFilterState()"
-        href="${getShareUrl(x.fileId)}"
-      >🔍 PERBESAR</a>
-      `}
+      <div class="actionsRow actionsRow3">
+        ${isDetailMode ? "" : `
+        <a
+          class="detailBtn"
+          target="_top"
+          onclick="saveFilterState()"
+          href="${getShareUrl(x.fileId)}"
+        >🔍 DETAIL</a>
+        `}
 
-      <button
-        class="shareBtn"
-        onclick="shareCard(this.dataset.fid, this)"
-        data-fid="${escapeHtml(x.fileId)}"
-      >📤 SHARE</button>
+        <button
+          class="shareBtn"
+          onclick="shareCard(this.dataset.fid, this)"
+          data-fid="${escapeHtml(x.fileId)}"
+        >📤 SHARE</button>
 
-      <a
-        class="waBtn ${waDisabled ? "disabledBtn" : ""}"
-        target="_blank"
-        href="${waDisabled ? "#" : wa}"
-      >💬  W A</a>
+        ${canRequestRevision(x) ? `
+        <button
+          class="revisiBtn"
+          onclick="openRevisiModal('${escapeHtml(x.fileId)}')"
+        >✏️ REVISI</button>
+        ` : ""}
+      </div>
 
-      <button
-        class="copyNarrativeBtn"
-        onclick="copyNarrative(this.dataset.fid, this)"
-        data-fid="${escapeHtml(x.fileId)}"
-      >📋 TXT</button>
+      <div class="actionsRow actionsRow4">
+        <a
+          class="waBtn ${waDisabled ? "disabledBtn" : ""}"
+          target="_blank"
+          href="${waDisabled ? "#" : wa}"
+        >💬  W A</a>
 
-      <a
-        class="folderBtn ${!x.folderLink ? "disabledBtn" : ""}"
-        target="_blank"
-        href="${escapeHtml(x.folderLink || "#")}"
-      >📂 FOLDER</a>
+        <button
+          class="copyNarrativeBtn"
+          onclick="copyNarrative(this.dataset.fid, this)"
+          data-fid="${escapeHtml(x.fileId)}"
+        >📋 TXT</button>
 
-      <button
-        class="${soldBtnClass}"
-        ${soldBtnDisabledAttr}
-        onclick="markSold(this.dataset.fid)"
-        data-fid="${escapeHtml(x.fileId)}"
-      >⛔ ${soldLabel}</button>
+        <a
+          class="folderBtn ${!x.folderLink ? "disabledBtn" : ""}"
+          target="_blank"
+          href="${escapeHtml(x.folderLink || "#")}"
+        >📂 FOLDER</a>
+
+        <button
+          class="${soldBtnClass}"
+          ${soldBtnDisabledAttr}
+          onclick="markSold(this.dataset.fid)"
+          data-fid="${escapeHtml(x.fileId)}"
+        >⛔ ${soldLabel}</button>
+      </div>
+
+      ${hepiAuth.getStatus() === "adminkantor" ? `
+      <div class="actionsRow actionsRow2">
+        <button
+          class="gantiAgenBtn"
+          onclick="openGantiAgenModal('${escapeHtml(x.fileId)}')"
+        >🔄 GANTI AGEN</button>
+
+        <button
+          class="takedownBtn"
+          onclick="confirmTakedown('${escapeHtml(x.fileId)}', '${escapeHtml((x.fileName || "").replace(/'/g, "\\'"))}')"
+        >🗑️ TAKEDOWN</button>
+      </div>
+      ` : ""}
     </div>
   </div>
 `;
@@ -2500,6 +2608,176 @@
         btnEl.innerHTML = originalText;
         btnEl.disabled = false;
       }
+    }
+
+    const REVISI_FIELDS = [
+      { field: "harga", label: "Harga" },
+      { field: "luas_tanah", label: "Luas Tanah" },
+      { field: "luas_bangunan", label: "Luas Bangunan" },
+      { field: "kamar_tidur", label: "Kamar Tidur" },
+      { field: "kamar_mandi", label: "Kamar Mandi" },
+      { field: "listrik", label: "Listrik" },
+      { field: "sumber_air", label: "Sumber Air" },
+      { field: "sertifikat", label: "Sertifikat" },
+      { field: "hadap", label: "Hadap" },
+      { field: "garasi", label: "Garasi" },
+      { field: "furnished", label: "Furnished" }
+    ];
+    let revisiTargetFileId = "";
+
+    function revisiFieldOptionsHtml() {
+      return REVISI_FIELDS.map(function(f) {
+        return '<option value="' + f.field + '">' + f.label + '</option>';
+      }).join("");
+    }
+
+    function revisiValueControlHtml(fieldKey) {
+      if (fieldKey === "furnished") {
+        return '<select class="revisiFieldValue" style="flex:1;">'
+          + '<option value="Ya">Ya</option>'
+          + '<option value="Semi">Semi</option>'
+          + '<option value="Tidak">Tidak</option>'
+          + '</select>';
+      }
+      return '<input class="revisiFieldValue" placeholder="Nilai baru" style="flex:1;">';
+    }
+
+    function addRevisiFieldRow() {
+      const wrap = $("revisiFieldRows");
+      const row = document.createElement("div");
+      row.className = "revisiFieldRowInput";
+      row.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px;";
+      row.innerHTML =
+        '<select class="revisiFieldSelect" style="flex:1;width:auto;">' + revisiFieldOptionsHtml() + '</select>'
+        + '<span class="revisiValueWrap" style="flex:1;display:flex;">' + revisiValueControlHtml(REVISI_FIELDS[0].field) + '</span>'
+        // button{width:100%} is the global default for this page — without
+        // an explicit override here the "remove row" button tries to fill
+        // the whole flex row and squeezes the select/value inputs down to
+        // nothing next to it.
+        + '<button type="button" class="btnDanger" style="flex:0 0 auto;width:auto;min-height:0;padding:10px 16px;font-size:18px;" onclick="this.parentElement.remove()">✕</button>';
+
+      row.querySelector(".revisiFieldSelect").addEventListener("change", function() {
+        row.querySelector(".revisiValueWrap").innerHTML = revisiValueControlHtml(this.value);
+      });
+
+      wrap.appendChild(row);
+    }
+
+    function openRevisiModal(fileId) {
+      revisiTargetFileId = fileId;
+      $("revisiFieldRows").innerHTML = "";
+      addRevisiFieldRow();
+      $("revisiFotoInput").value = "";
+      $("revisiCatatan").value = "";
+      $("revisiSubmitStatus").textContent = "";
+      $("revisiModal").style.display = "block";
+    }
+
+    function closeRevisiModal() {
+      $("revisiModal").style.display = "none";
+    }
+
+    function submitRevisiModal() {
+      const rows = Array.prototype.slice.call(document.querySelectorAll("#revisiFieldRows .revisiFieldRowInput"));
+      const perubahan = rows.map(function(row) {
+        return {
+          field: row.querySelector(".revisiFieldSelect").value,
+          nilaiBaru: safeStr(row.querySelector(".revisiFieldValue").value).trim()
+        };
+      }).filter(function(p) { return p.nilaiBaru; });
+
+      const fotoInput = $("revisiFotoInput");
+      const fotoFile = fotoInput.files && fotoInput.files[0];
+      const catatan = safeStr($("revisiCatatan").value).trim();
+
+      if (!perubahan.length && !fotoFile && !catatan) {
+        alert("Isi minimal satu perubahan, foto, atau catatan.");
+        return;
+      }
+
+      const btn = $("btnSubmitRevisi");
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = "Mengirim...";
+
+      const fd = new FormData();
+      fd.append("targetFileId", revisiTargetFileId);
+      fd.append("perubahan", JSON.stringify(perubahan));
+      fd.append("catatan", catatan);
+      if (fotoFile) fd.append("foto", fotoFile, fotoFile.name);
+
+      hepiApi("/api/revision/submit", { formData: fd })
+        .then(function() {
+          btn.disabled = false;
+          btn.innerHTML = original;
+          closeRevisiModal();
+          showMessage("✅ Revisi berhasil diajukan, menunggu review admin/adminkantor.");
+        })
+        .catch(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = original;
+          $("revisiSubmitStatus").textContent = err && err.message ? err.message : String(err);
+        });
+    }
+
+    let gantiAgenTargetFileId = "";
+
+    function openGantiAgenModal(fileId) {
+      gantiAgenTargetFileId = fileId;
+      const sel = $("gantiAgenSelect");
+      sel.innerHTML = '<option value="">Memuat...</option>';
+      $("gantiAgenModal").style.display = "block";
+
+      hepiApi("/api/agents", { body: { for: "listing" } })
+        .then(function(list) {
+          const agentList = Array.isArray(list) ? list : [];
+          sel.innerHTML = agentList.map(function(a) {
+            return '<option value="' + escapeHtml(a.kode) + '">' + escapeHtml(a.nama || a.kode) + '</option>';
+          }).join("");
+        })
+        .catch(function() {
+          sel.innerHTML = '<option value="">Gagal memuat agen</option>';
+        });
+    }
+
+    function closeGantiAgenModal() {
+      $("gantiAgenModal").style.display = "none";
+    }
+
+    function submitGantiAgen() {
+      const newKode = $("gantiAgenSelect").value;
+      if (!newKode) { alert("Pilih agen baru."); return; }
+
+      const btn = $("btnSubmitGantiAgen");
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = "Menyimpan...";
+
+      hepiApi("/api/listings/reassign-agent", { body: { fileId: gantiAgenTargetFileId, newKodeAgen: newKode } })
+        .then(function() {
+          btn.disabled = false;
+          btn.innerHTML = original;
+          closeGantiAgenModal();
+          showMessage("✅ Agen berhasil diganti.");
+          loadData(true, true);
+        })
+        .catch(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = original;
+          alert(err && err.message ? err.message : String(err));
+        });
+    }
+
+    function confirmTakedown(fileId, fileName) {
+      if (!confirm("Yakin hapus listing \"" + fileName + "\" dari data? Folder & foto di Drive TIDAK dihapus, hanya baris di sheet.")) return;
+      hepiApi("/api/listings/delete", { body: { fileId: fileId } })
+        .then(function() {
+          showMessage("✅ Listing berhasil dihapus dari data.");
+          loadData(true, true);
+        })
+        .catch(function(err) {
+          alert(err && err.message ? err.message : String(err));
+        });
     }
 
     function fallbackCopyText(text, successMsg) {
