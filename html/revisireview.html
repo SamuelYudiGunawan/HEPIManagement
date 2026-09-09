@@ -116,6 +116,22 @@
     $("previewBody").innerHTML = "";
   }
 
+  function previewCurrentNarasi(fileId) {
+    $("previewBody").innerHTML = '<div class="narasiPreviewText">Memuat...</div>';
+    $("previewModal").style.display = "block";
+    hepiApi("/api/narrative/" + encodeURIComponent(fileId))
+      .then(function(res) {
+        if (!res || !res.success) {
+          $("previewBody").innerHTML = '<div class="narasiPreviewText">Gagal memuat narasi: ' + escapeHtml((res && res.error) || "Unknown error") + '</div>';
+          return;
+        }
+        $("previewBody").innerHTML = '<div class="narasiPreviewText">' + escapeHtml(res.content || "") + '</div>';
+      })
+      .catch(function(err) {
+        $("previewBody").innerHTML = '<div class="narasiPreviewText">Gagal memuat narasi: ' + escapeHtml(err && err.message ? err.message : String(err)) + '</div>';
+      });
+  }
+
   function openFeedbackModal(revisionId) {
     const row = queueRows.find(function(r) { return r.revisionId === revisionId; });
     feedbackTargetId = revisionId;
@@ -157,6 +173,9 @@
     return '<div class="revisiCard" data-revision-id="' + escapeHtml(r.revisionId) + '">'
       + '<div class="revisiCardHead">'
       + '<div><b>' + escapeHtml(r.namaListing || r.fileId) + '</b> — ' + escapeHtml(r.kodeAgen) + ' (' + escapeHtml(r.namaAgen) + ')'
+      + (r.thumbnailId ? '<button type="button" class="queueIconBtn" title="Lihat foto listing saat ini" onclick="openPreview(\'' + escapeHtml(r.thumbnailId) + '\')">📷</button>' : '')
+      + '<button type="button" class="queueIconBtn" title="Lihat narasi (.txt) saat ini" onclick="previewCurrentNarasi(\'' + escapeHtml(r.fileId) + '\')">📃</button>'
+      + (r.folderLink ? '<a class="queueIconBtn" title="Lihat folder di Drive" href="' + escapeHtml(r.folderLink) + '" target="_blank">📁</a>' : '')
       + '<div class="smallHint">' + escapeHtml((r.dateCreated || '').slice(0, 10)) + '</div></div>'
       + statusPillHtml(r.status)
       + '</div>'
