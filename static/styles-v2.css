@@ -208,13 +208,14 @@
     font-size: 22px !important;
   }
 
-  .queueStatusPending, .queueStatusRevisi, .queueStatusSelesai {
+  .queueStatusPending, .queueStatusRevisi, .queueStatusSelesai, .queueStatusBatal {
     font-weight: 800;
     white-space: nowrap;
   }
   .queueStatusPending { color: #8a6d00; }
   .queueStatusRevisi { color: #c62828; }
   .queueStatusSelesai { color: #1b5e20; }
+  .queueStatusBatal { color: #757575; }
 
   .queueIconBtn {
     display: inline-flex;
@@ -290,10 +291,17 @@
     z-index: 2;
   }
   .previewBody {
+    position: relative;
     flex: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    /* "safe" falls back to start-alignment exactly when centering would
+       overflow — without it, a tall (e.g. 4:5 portrait) image whose CSS
+       max-height (90vh) exceeds the actual space left under the toolbar
+       renders centered-and-overflowing, which clips its top completely out
+       of the scrollable area (unreachable even by scrolling up from 0) —
+       looked like the photo itself was cropped, when it was a layout bug. */
+    align-items: safe center;
+    justify-content: safe center;
     overflow: auto;
     background: #f4f6f9;
     min-width: 240px;
@@ -301,6 +309,74 @@
   }
   .previewBody img { max-width: 92vw; max-height: 90vh; object-fit: contain; display: block; }
   .previewBody iframe { width: 90vw; max-width: 900px; height: 85vh; border: 0; }
+  .previewToolbar {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 12px;
+    margin-top: 44px;
+    background: #fff;
+    border-bottom: 1px solid #eee;
+  }
+  .previewToolbar button {
+    width: auto !important;
+    min-height: auto !important;
+    padding: 6px 16px !important;
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    border-radius: 8px !important;
+  }
+  #previewZoomPct { font-size: 13px; color: #666; min-width: 44px; text-align: center; }
+  .previewImgWrap { display: flex; align-items: center; justify-content: center; min-width: 100%; min-height: 100%; }
+  .previewBody.zoomed { align-items: flex-start; justify-content: flex-start; }
+  .previewGalleryNav { position: absolute; inset: 0; pointer-events: none; }
+  .previewNavBtn {
+    pointer-events: auto;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px !important;
+    height: 40px;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border-radius: 50%;
+    background: rgba(0,0,0,.5) !important;
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    border: none;
+    box-shadow: none !important;
+  }
+  .previewNavBtn:hover { background: rgba(0,0,0,.7) !important; }
+  .previewNavLeft { left: 10px; }
+  .previewNavRight { right: 10px; }
+  .previewGalleryCounter {
+    pointer-events: none;
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,.55);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 999px;
+  }
+  .previewBody.pdfMode { align-items: flex-start; padding-top: 34px; }
+  .previewPdfWrap { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px; }
+  .previewDownloadBtn {
+    display: inline-block;
+    background: #1565c0;
+    color: #fff !important;
+    text-decoration: none;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 14px;
+  }
+  .previewDownloadBtn:hover { opacity: .85; }
   .narasiPreviewText {
     white-space: pre-wrap;
     text-align: left;

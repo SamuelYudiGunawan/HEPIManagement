@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/styles-v2.css">
   <script src="/js/hepi-api.js"></script>
   <script src="/js/hepi-auth.js"></script>
+  <script src="/js/preview-modal.js"></script>
   <script src="/js/textsize.js"></script>
   <script>
     try {
@@ -36,6 +37,12 @@
   <div id="previewModal" class="previewModal" onclick="if (event.target === this) closePreview();">
     <div class="previewBox">
       <button type="button" class="previewClose" onclick="closePreview()">Tutup ✕</button>
+      <div id="previewToolbar" class="previewToolbar">
+        <button type="button" onclick="previewZoomOut()">−</button>
+        <span id="previewZoomPct">100%</span>
+        <button type="button" onclick="previewZoomIn()">+</button>
+        <button type="button" onclick="previewZoomReset()">Reset</button>
+      </div>
       <div id="previewBody" class="previewBody"></div>
     </div>
   </div>
@@ -102,15 +109,21 @@
     hepiAuth.logout();
   }
 
+  const PROPERTY_PHOTO_MAX_COUNT = 5;
+  const PROPERTY_PHOTO_MAX_DIM = 1920;
+  const PROPERTY_PHOTO_QUALITY = 0.85;
+
   function updatePreviewButton(card, which) {
     const btn = card.querySelector(which === "form" ? ".btnPreviewForm" : ".btnPreviewProperty");
-    btn.style.display = card._preview[which] ? "inline-flex" : "none";
+    const val = card._preview[which];
+    const has = which === "property" ? !!(val && val.length) : !!val;
+    btn.style.display = has ? "inline-flex" : "none";
   }
 
   function setLocalPreview(card, which, file) {
     const prev = card._preview[which];
     if (prev && prev.kind === "local" && prev.url) URL.revokeObjectURL(prev.url);
-    card._preview[which] = file ? { kind: "local", url: URL.createObjectURL(file), mime: file.type } : null;
+    card._preview[which] = file ? { kind: "local", url: URL.createObjectURL(file), mime: file.type, name: file.name } : null;
     updatePreviewButton(card, which);
   }
 
@@ -121,48 +134,110 @@
     updatePreviewButton(card, which);
   }
 
+  // Property photos are a list (up to 5), unlike the single form/property
+  // slots above — kept as separate functions rather than overloading the
+  // single-item ones with array handling everywhere they're read.
+  function setLocalPropertyPreview(card, items) {
+    const prev = card._preview.property;
+    if (Array.isArray(prev)) prev.forEach(function(p) { if (p.kind === "local" && p.url) URL.revokeObjectURL(p.url); });
+    card._preview.property = items && items.length
+      ? items.map(function(it) { return { kind: "local", url: URL.createObjectURL(it.blob), blob: it.blob, name: it.name }; })
+      : null;
+    updatePreviewButton(card, "property");
+  }
+
+  function setRemotePropertyPreview(card, fileId) {
+    const prev = card._preview.property;
+    if (Array.isArray(prev)) prev.forEach(function(p) { if (p.kind === "local" && p.url) URL.revokeObjectURL(p.url); });
+    card._preview.property = fileId ? [{ kind: "remote", fileId: fileId }] : null;
+    updatePreviewButton(card, "property");
+  }
+
   function revokeCardPreviews(card) {
-    ["form", "property"].forEach(function(w) {
-      const p = card._preview && card._preview[w];
-      if (p && p.kind === "local" && p.url) URL.revokeObjectURL(p.url);
+    const form = card._preview && card._preview.form;
+    if (form && form.kind === "local" && form.url) URL.revokeObjectURL(form.url);
+    const property = card._preview && card._preview.property;
+    if (Array.isArray(property)) property.forEach(function(p) { if (p.kind === "local" && p.url) URL.revokeObjectURL(p.url); });
+  }
+
+  // Same resize/compress approach already proven in inputlisting.html
+  // (createImageBitmap with orientation correction, falling back to a plain
+  // <img> load; downscale to a max dimension, re-encode as JPEG) — converted
+  // to a Blob at the end since this page uploads via real multipart
+  // FormData, not the base64-JSON payload inputlisting.html uses.
+  function loadImageForResize_(file) {
+    function loadViaImg() {
+      return new Promise(function(resolve, reject) {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = function() { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = function() { URL.revokeObjectURL(url); reject(new Error("Gagal membaca foto.")); };
+        img.src = url;
+      });
+    }
+    if (typeof createImageBitmap === "function") {
+      return createImageBitmap(file, { imageOrientation: "from-image" }).catch(loadViaImg);
+    }
+    return loadViaImg();
+  }
+
+  function resizePropertyPhoto_(file) {
+    return loadImageForResize_(file).then(function(source) {
+      const w = source.width, h = source.height;
+      if (!w || !h) throw new Error("Foto tidak valid.");
+      const scale = Math.min(1, PROPERTY_PHOTO_MAX_DIM / Math.max(w, h));
+      const width = Math.max(1, Math.round(w * scale));
+      const height = Math.max(1, Math.round(h * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(source, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL("image/jpeg", PROPERTY_PHOTO_QUALITY);
+      return fetch(dataUrl).then(function(res) { return res.blob(); });
     });
   }
 
   function previewCardFile(card, which) {
+    if (which === "property") {
+      const items = card._preview.property;
+      if (!items || !items.length) return;
+      if (items[0].kind === "local") {
+        previewShowGallery(items.map(function(p) { return { src: p.url }; }));
+      } else {
+        previewOpenPropertyGallery(items[0].fileId);
+      }
+      return;
+    }
+
     const p = card._preview[which];
     if (!p) return;
     const isPdf = String(p.mime || "").indexOf("pdf") >= 0;
-    const body = $("previewBody");
     if (p.kind === "local") {
-      body.innerHTML = isPdf ? '<iframe src="' + p.url + '"></iframe>' : '<img src="' + p.url + '" alt="preview">';
+      // Blob URLs support direct download too — no server round-trip needed
+      // for a file the agent already has on their own device.
+      previewShowMedia({
+        kind: isPdf ? "pdf" : "image",
+        src: p.url,
+        downloadHref: isPdf ? p.url : null,
+        downloadName: isPdf ? (p.name || "form.pdf") : null
+      });
     } else {
-      body.innerHTML = isPdf
-        ? '<iframe src="https://drive.google.com/file/d/' + encodeURIComponent(p.fileId) + '/preview"></iframe>'
-        : '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(p.fileId) + '=w1600" alt="preview">';
+      previewShowMedia(isPdf
+        ? {
+            kind: "pdf",
+            src: "https://drive.google.com/file/d/" + encodeURIComponent(p.fileId) + "/preview",
+            downloadHref: "/api/file-download/" + encodeURIComponent(p.fileId)
+          }
+        : { kind: "image", src: "https://lh3.googleusercontent.com/d/" + encodeURIComponent(p.fileId) + "=w1600" });
     }
-    $("previewModal").style.display = "block";
   }
 
-  function closePreview() {
-    $("previewModal").style.display = "none";
-    $("previewBody").innerHTML = "";
-  }
+  // closePreview / openPreview / previewZoom* come from /js/preview-modal.js
 
   function previewNarasi(fileId) {
     const row = myRows.find(function(r) { return r.fileId === fileId; });
     if (!row) return;
-    $("previewBody").innerHTML = '<div class="narasiPreviewText">' + escapeHtml(row.narasi || "") + '</div>';
-    $("previewModal").style.display = "block";
-  }
-
-  function openPreview(fileId, kind) {
-    const body = $("previewBody");
-    if (kind === "pdf") {
-      body.innerHTML = '<iframe src="https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/preview"></iframe>';
-    } else {
-      body.innerHTML = '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w1600" alt="preview">';
-    }
-    $("previewModal").style.display = "block";
+    previewShowHtml('<div class="narasiPreviewText">' + escapeHtml(row.narasi || "") + '</div>');
   }
 
   function refreshRemoveButtons() {
@@ -187,8 +262,8 @@
       + '<div class="specGroup"><div class="specLabel">Foto Form Fisik (foto/PDF)</div>'
       + '<div class="fileRow"><input class="formFileInput" type="file" accept="image/*,application/pdf">'
       + '<button type="button" class="queueIconBtn btnPreviewForm" style="display:none;" title="Lihat">👁️</button></div></div>'
-      + '<div class="specGroup"><div class="specLabel">Foto Property</div>'
-      + '<div class="fileRow"><input class="propertyFileInput" type="file" accept="image/*">'
+      + '<div class="specGroup"><div class="specLabel">Foto Property (maks 5)</div>'
+      + '<div class="fileRow"><input class="propertyFileInput" type="file" accept="image/*" multiple>'
       + '<button type="button" class="queueIconBtn btnPreviewProperty" style="display:none;" title="Lihat">👁️</button></div></div>'
       + '</div>'
       + '<div class="specGroup judulGroup" style="margin-top:16px;">'
@@ -202,7 +277,27 @@
       setLocalPreview(card, "form", this.files[0] || null);
     });
     card.querySelector(".propertyFileInput").addEventListener("change", function() {
-      setLocalPreview(card, "property", this.files[0] || null);
+      const input = this;
+      const files = Array.prototype.slice.call(input.files || []);
+      if (files.length > PROPERTY_PHOTO_MAX_COUNT) {
+        alert("Anda memilih " + files.length + " foto, maksimal " + PROPERTY_PHOTO_MAX_COUNT + ". Pilih ulang.");
+        input.value = "";
+        return;
+      }
+      if (!files.length) {
+        setLocalPropertyPreview(card, null);
+        return;
+      }
+      Promise.all(files.map(function(file, i) {
+        return resizePropertyPhoto_(file).then(function(blob) {
+          return { blob: blob, name: "property" + (i + 1) + ".jpg" };
+        });
+      })).then(function(items) {
+        setLocalPropertyPreview(card, items);
+      }).catch(function(err) {
+        alert(err && err.message ? err.message : String(err));
+        input.value = "";
+      });
     });
     card.querySelector(".btnPreviewForm").addEventListener("click", function() { previewCardFile(card, "form"); });
     card.querySelector(".btnPreviewProperty").addEventListener("click", function() { previewCardFile(card, "property"); });
@@ -248,7 +343,7 @@
     card.querySelector(".judulGroup").style.display = "none";
     card.querySelector(".narasiInput").value = row.narasi || "";
     setRemotePreview(card, "form", row.formFileId, row.formMime);
-    setRemotePreview(card, "property", row.propertyFileId, "image/jpeg");
+    setRemotePropertyPreview(card, row.propertyFileId);
     $("btnAddCard").style.display = "none";
     $("formTitle").textContent = "Edit Submission (" + row.tanggal + ")";
     $("editHint").style.display = "block";
@@ -272,11 +367,12 @@
     const canEdit = r.status !== "selesai";
     const isPdf = r.formMime === "application/pdf";
     return '<tr>'
+      + '<td>' + (r.judul ? escapeHtml(r.judul) : "—") + '</td>'
       + '<td>' + escapeHtml(r.tanggal) + '</td>'
       + '<td>' + statusPillHtml(r.status) + '</td>'
       + '<td>' + (r.narasi ? '<button type="button" class="queueIconBtn" title="Lihat narasi" onclick="previewNarasi(\'' + escapeHtml(r.fileId) + '\')">📃</button>' : "—") + '</td>'
       + '<td>' + (r.formFileId ? '<button type="button" class="queueIconBtn" title="Lihat form fisik" onclick="openPreview(\'' + escapeHtml(r.formFileId) + '\', \'' + (isPdf ? "pdf" : "image") + '\')">' + (isPdf ? "📄" : "🖼️") + '</button>' : "—") + '</td>'
-      + '<td>' + (r.propertyFileId ? '<button type="button" class="queueIconBtn" title="Lihat foto property" onclick="openPreview(\'' + escapeHtml(r.propertyFileId) + '\', \'image\')">📷</button>' : "—") + '</td>'
+      + '<td>' + (r.propertyFileId ? '<button type="button" class="queueIconBtn" title="Lihat foto property" onclick="previewOpenPropertyGallery(\'' + escapeHtml(r.propertyFileId) + '\')">📷</button>' : "—") + '</td>'
       + '<td>' + (r.feedback ? escapeHtml(r.feedback) : "—") + '</td>'
       + '<td>' + (canEdit ? '<button type="button" class="queueTextBtn" onclick="startEdit(\'' + escapeHtml(r.fileId) + '\')">Edit</button>' : "—") + '</td>'
       + '</tr>';
@@ -284,7 +380,7 @@
 
   function historyTableHtml(rows) {
     return '<table class="scoreTable queueTable"><thead><tr>'
-      + '<th>Tanggal</th><th>Status</th><th>Narasi</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Aksi</th>'
+      + '<th>Judul</th><th>Tanggal</th><th>Status</th><th>Narasi</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Aksi</th>'
       + '</tr></thead><tbody>' + rows.map(historyRowHtml).join("") + '</tbody></table>';
   }
 
@@ -321,7 +417,9 @@
     $("historyArea").innerHTML = '<div class="emptyState">Memuat...</div>';
     hepiApi("/api/form-listing/mine", { body: {} })
       .then(function(res) {
-        myRows = (res && res.rows) || [];
+        // Server returns oldest-first (shared with the admin queue's own
+        // ordering need) — reverse just for this page's own display.
+        myRows = ((res && res.rows) || []).slice().reverse();
         renderHistory();
       })
       .catch(function(err) {
@@ -333,18 +431,21 @@
 
   function collectCardPayload(card) {
     const formFile = card.querySelector(".formFileInput").files[0] || null;
-    const propertyFile = card.querySelector(".propertyFileInput").files[0] || null;
+    // Only "local" (newly selected + already-compressed) property items are
+    // ever actually uploaded — a "remote" entry just means edit mode loaded
+    // the existing photos for preview and the agent didn't replace them.
+    const propertyItems = (card._preview.property || []).filter(function(p) { return p.kind === "local"; });
     const judul = safeStr(card.querySelector(".judulInput").value).trim();
     const narasi = safeStr(card.querySelector(".narasiInput").value).trim();
 
     if (!editingFileId) {
       if (!formFile) throw new Error("Upload Foto Form Fisik (foto atau PDF).");
-      if (!propertyFile) throw new Error("Upload Foto Property.");
-    } else if (!formFile && !propertyFile && !narasi) {
+      if (!propertyItems.length) throw new Error("Upload Foto Property.");
+    } else if (!formFile && !propertyItems.length && !narasi) {
       throw new Error("Tidak ada perubahan untuk disimpan.");
     }
 
-    return { formFile: formFile, propertyFile: propertyFile, judul: judul, narasi: narasi };
+    return { formFile: formFile, propertyItems: propertyItems, judul: judul, narasi: narasi };
   }
 
   function runSubmitCard(payload) {
@@ -352,7 +453,9 @@
     fd.append("judul", payload.judul);
     fd.append("narasi", payload.narasi);
     if (payload.formFile) fd.append("form", payload.formFile, payload.formFile.name);
-    if (payload.propertyFile) fd.append("property", payload.propertyFile, payload.propertyFile.name);
+    payload.propertyItems.forEach(function(item, i) {
+      fd.append("property" + (i + 1), item.blob, item.name || ("property" + (i + 1) + ".jpg"));
+    });
     if (editingFileId) fd.append("fileId", editingFileId);
     return hepiApi(editingFileId ? "/api/form-listing/edit" : "/api/form-listing/submit", { formData: fd });
   }

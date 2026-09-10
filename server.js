@@ -12,6 +12,7 @@ const crypto = require("crypto");
 const Fastify = require("fastify");
 const { hasCredentials } = require("./lib/google");
 const { ROOT_FOLDER_ID } = require("./lib/config");
+const drive = require("./lib/drive");
 const agents = require("./lib/agents");
 const listings = require("./lib/listings");
 const activity = require("./lib/activity");
@@ -252,7 +253,9 @@ async function build() {
   });
 
   await app.register(require("@fastify/multipart"), {
-    limits: { fileSize: BODY_LIMIT, files: 4 }
+    // Form Listing submit sends 1 form file + up to 5 property photos (each
+    // under its own field name — property1..property5, see formListing.js).
+    limits: { fileSize: BODY_LIMIT, files: 8 }
   });
 
   await app.register(require("@fastify/static"), {
@@ -392,6 +395,22 @@ async function build() {
   app.get("/api/narrative/:id", async (req) => {
     credsOrThrow();
     return listings.getNarrativeText(req.params.id);
+  });
+
+  app.get("/api/form-listing/property-photos/:id", async (req) => {
+    credsOrThrow();
+    const photos = await formListing.resolvePropertyPhotos(req.params.id);
+    return { photos };
+  });
+
+  app.get("/api/file-download/:id", async (req, reply) => {
+    credsOrThrow();
+    const id = req.params.id;
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) return reply.code(400).send("bad id");
+    const { buffer, name, mimeType } = await drive.getFileBytes(id);
+    reply.header("Content-Type", mimeType || "application/octet-stream");
+    reply.header("Content-Disposition", 'attachment; filename="' + String(name || "download").replace(/["\\\r\n]/g, "") + '"');
+    return reply.send(buffer);
   });
 
   app.get("/api/img-thumb/:id", async (req, reply) => {
@@ -545,6 +564,13 @@ async function build() {
     const body = req.body || {};
     const { agentCode } = requireSession(req);
     return revision.giveFeedback(agentCode, body.revisionId, body.feedback);
+  });
+
+  app.post("/api/revision/cancel", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode } = requireSession(req);
+    return revision.cancelRevision(agentCode, body.revisionId);
   });
 
   app.post("/api/revision/apply", async (req) => {

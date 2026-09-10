@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/styles-v2.css">
   <script src="/js/hepi-api.js"></script>
   <script src="/js/hepi-auth.js"></script>
+  <script src="/js/preview-modal.js"></script>
   <script src="/js/textsize.js"></script>
   <style>
     .revisiCard { border: 1px solid #ececff; border-radius: 14px; padding: 14px; margin-bottom: 12px; background: #fff; }
@@ -39,6 +40,12 @@
   <div id="previewModal" class="previewModal" onclick="if (event.target === this) closePreview();">
     <div class="previewBox">
       <button type="button" class="previewClose" onclick="closePreview()">Tutup ✕</button>
+      <div id="previewToolbar" class="previewToolbar">
+        <button type="button" onclick="previewZoomOut()">−</button>
+        <span id="previewZoomPct">100%</span>
+        <button type="button" onclick="previewZoomIn()">+</button>
+        <button type="button" onclick="previewZoomReset()">Reset</button>
+      </div>
       <div id="previewBody" class="previewBody"></div>
     </div>
   </div>
@@ -107,28 +114,20 @@
     $("queueBox").style.display = "block";
   }
 
-  function openPreview(fileId) {
-    $("previewBody").innerHTML = '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w1600" alt="preview">';
-    $("previewModal").style.display = "block";
-  }
-  function closePreview() {
-    $("previewModal").style.display = "none";
-    $("previewBody").innerHTML = "";
-  }
+  // openPreview / closePreview / previewZoom* come from /js/preview-modal.js
 
   function previewCurrentNarasi(fileId) {
-    $("previewBody").innerHTML = '<div class="narasiPreviewText">Memuat...</div>';
-    $("previewModal").style.display = "block";
+    previewShowHtml('<div class="narasiPreviewText">Memuat...</div>');
     hepiApi("/api/narrative/" + encodeURIComponent(fileId))
       .then(function(res) {
         if (!res || !res.success) {
-          $("previewBody").innerHTML = '<div class="narasiPreviewText">Gagal memuat narasi: ' + escapeHtml((res && res.error) || "Unknown error") + '</div>';
+          previewShowHtml('<div class="narasiPreviewText">Gagal memuat narasi: ' + escapeHtml((res && res.error) || "Unknown error") + '</div>');
           return;
         }
-        $("previewBody").innerHTML = '<div class="narasiPreviewText">' + escapeHtml(res.content || "") + '</div>';
+        previewShowHtml('<div class="narasiPreviewText">' + escapeHtml(res.content || "") + '</div>');
       })
       .catch(function(err) {
-        $("previewBody").innerHTML = '<div class="narasiPreviewText">Gagal memuat narasi: ' + escapeHtml(err && err.message ? err.message : String(err)) + '</div>';
+        previewShowHtml('<div class="narasiPreviewText">Gagal memuat narasi: ' + escapeHtml(err && err.message ? err.message : String(err)) + '</div>');
       });
   }
 
@@ -152,8 +151,14 @@
 
   function statusPillHtml(status) {
     const s = safeStr(status);
-    const cls = s === "selesai" ? "queueStatusSelesai" : (s === "revisi" ? "queueStatusRevisi" : "queueStatusPending");
-    const label = s === "selesai" ? "Selesai" : (s === "revisi" ? "Perlu Revisi" : "Menunggu");
+    const cls = s === "selesai" ? "queueStatusSelesai"
+      : s === "revisi" ? "queueStatusRevisi"
+      : s === "dibatalkan" ? "queueStatusBatal"
+      : "queueStatusPending";
+    const label = s === "selesai" ? "Selesai"
+      : s === "revisi" ? "Perlu Revisi"
+      : s === "dibatalkan" ? "Dibatalkan"
+      : "Menunggu";
     return '<span class="' + cls + '">' + escapeHtml(label) + '</span>';
   }
 
@@ -168,6 +173,7 @@
 
   function cardHtml(r) {
     const isDone = r.status === "selesai";
+    const isResolved = isDone || r.status === "dibatalkan";
     const fieldsHtml = (r.perubahan || []).map(fieldRowHtml).join('')
       || '<div class="smallHint">Tidak ada perubahan field terstruktur — lihat catatan.</div>';
     return '<div class="revisiCard" data-revision-id="' + escapeHtml(r.revisionId) + '">'
@@ -184,14 +190,15 @@
       + (r.fotoBaruId
           ? '<button type="button" class="queueIconBtn" title="Lihat foto referensi dari agen" onclick="openPreview(\'' + escapeHtml(r.fotoBaruId) + '\')">📷 Referensi agen</button>'
           : '<span class="smallHint">Tidak ada foto referensi dari agen</span>')
-      + (isDone ? '' : '<label class="smallHint">Upload foto baru (opsional): <input type="file" class="revisiFotoInput" accept="image/*"></label>')
+      + (isResolved ? '' : '<label class="smallHint">Upload foto baru (opsional): <input type="file" class="revisiFotoInput" accept="image/*"></label>')
       + '</div>'
       + (r.catatan ? '<div class="revisiCatatan"><b>Catatan:</b> ' + escapeHtml(r.catatan) + '</div>' : '')
       + (r.feedback ? '<div class="revisiCatatan"><b>Feedback:</b> ' + escapeHtml(r.feedback) + '</div>' : '')
       + '<div class="revisiActions">'
-      + (isDone ? '' :
+      + (isResolved ? '' :
           '<button type="button" onclick="applyRevision(\'' + escapeHtml(r.revisionId) + '\', this)">✅ Terapkan</button>'
-          + '<button type="button" class="btnSecondary" onclick="openFeedbackModal(\'' + escapeHtml(r.revisionId) + '\')">💬 Feedback</button>')
+          + '<button type="button" class="btnSecondary" onclick="openFeedbackModal(\'' + escapeHtml(r.revisionId) + '\')">💬 Feedback</button>'
+          + '<button type="button" class="btnDanger" onclick="cancelRevisionRow(\'' + escapeHtml(r.revisionId) + '\', this)">❌ Batalkan</button>')
       + '</div>'
       + '</div>';
   }
@@ -201,8 +208,8 @@
       $("queueArea").innerHTML = '<div class="emptyState">Belum ada revisi diajukan.</div>';
       return;
     }
-    const active = queueRows.filter(function(r) { return r.status !== "selesai"; });
-    const done = queueRows.filter(function(r) { return r.status === "selesai"; });
+    const active = queueRows.filter(function(r) { return r.status === "pending" || r.status === "revisi"; });
+    const done = queueRows.filter(function(r) { return r.status === "selesai" || r.status === "dibatalkan"; });
 
     let html = active.length ? active.map(cardHtml).join('') : '<div class="emptyState">Tidak ada yang perlu direview.</div>';
 
@@ -224,7 +231,9 @@
     $("queueArea").innerHTML = '<div class="emptyState">Memuat...</div>';
     hepiApi("/api/revision/queue", { body: {} })
       .then(function(res) {
-        queueRows = (res && res.rows) || [];
+        // Server returns newest-first (shared with the agent's own history
+        // ordering need) — reverse just for this page's own display.
+        queueRows = ((res && res.rows) || []).slice().reverse();
         renderQueue();
       })
       .catch(function(err) {
@@ -261,6 +270,20 @@
     if (fotoFile) fd.append("foto", fotoFile, fotoFile.name);
 
     hepiApi("/api/revision/apply", { formData: fd })
+      .then(function() { loadQueue(); })
+      .catch(function(err) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = original;
+        alert(err && err.message ? err.message : String(err));
+      });
+  }
+
+  function cancelRevisionRow(revisionId, btnEl) {
+    if (!confirm("Batalkan revisi ini? Tidak ada perubahan yang akan diterapkan.")) return;
+    const original = btnEl.innerHTML;
+    btnEl.disabled = true;
+    btnEl.innerHTML = "Membatalkan...";
+    hepiApi("/api/revision/cancel", { body: { revisionId: revisionId } })
       .then(function() { loadQueue(); })
       .catch(function(err) {
         btnEl.disabled = false;

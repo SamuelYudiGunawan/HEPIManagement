@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/styles-v2.css">
   <script src="/js/hepi-api.js"></script>
   <script src="/js/hepi-auth.js"></script>
+  <script src="/js/preview-modal.js"></script>
   <script src="/js/textsize.js"></script>
   <script>
     try {
@@ -36,6 +37,12 @@
   <div id="previewModal" class="previewModal" onclick="if (event.target === this) closePreview();">
     <div class="previewBox">
       <button type="button" class="previewClose" onclick="closePreview()">Tutup ✕</button>
+      <div id="previewToolbar" class="previewToolbar">
+        <button type="button" onclick="previewZoomOut()">−</button>
+        <span id="previewZoomPct">100%</span>
+        <button type="button" onclick="previewZoomIn()">+</button>
+        <button type="button" onclick="previewZoomReset()">Reset</button>
+      </div>
       <div id="previewBody" class="previewBody"></div>
     </div>
   </div>
@@ -111,26 +118,12 @@
   let doneVisible = false;
   let feedbackTargetId = null;
 
-  function openPreview(fileId, kind) {
-    const body = $("previewBody");
-    if (kind === "pdf") {
-      body.innerHTML = '<iframe src="https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/preview"></iframe>';
-    } else {
-      body.innerHTML = '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w1600" alt="preview">';
-    }
-    $("previewModal").style.display = "block";
-  }
-
-  function closePreview() {
-    $("previewModal").style.display = "none";
-    $("previewBody").innerHTML = "";
-  }
+  // openPreview / closePreview / previewZoom* come from /js/preview-modal.js
 
   function previewNarasi(fileId) {
     const row = queueRows.find(function(r) { return r.fileId === fileId; });
     if (!row) return;
-    $("previewBody").innerHTML = '<div class="narasiPreviewText">' + escapeHtml(row.narasi || "") + '</div>';
-    $("previewModal").style.display = "block";
+    previewShowHtml('<div class="narasiPreviewText">' + escapeHtml(row.narasi || "") + '</div>');
   }
 
   function openFeedbackModal(fileId) {
@@ -164,7 +157,7 @@
 
   function propertyIconHtml(r) {
     return '<button type="button" class="queueIconBtn" title="Lihat foto property" '
-      + 'onclick="openPreview(\'' + escapeHtml(r.propertyFileId) + '\', \'image\')">📷</button>';
+      + 'onclick="previewOpenPropertyGallery(\'' + escapeHtml(r.propertyFileId) + '\')">📷</button>';
   }
 
   function feedbackIconHtml(r) {

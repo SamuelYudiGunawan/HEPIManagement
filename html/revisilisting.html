@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/styles-v2.css">
   <script src="/js/hepi-api.js"></script>
   <script src="/js/hepi-auth.js"></script>
+  <script src="/js/preview-modal.js"></script>
   <script src="/js/textsize.js"></script>
   <script>
     try {
@@ -33,6 +34,12 @@
   <div id="previewModal" class="previewModal" onclick="if (event.target === this) closePreview();">
     <div class="previewBox">
       <button type="button" class="previewClose" onclick="closePreview()">Tutup ✕</button>
+      <div id="previewToolbar" class="previewToolbar">
+        <button type="button" onclick="previewZoomOut()">−</button>
+        <span id="previewZoomPct">100%</span>
+        <button type="button" onclick="previewZoomIn()">+</button>
+        <button type="button" onclick="previewZoomReset()">Reset</button>
+      </div>
       <div id="previewBody" class="previewBody"></div>
     </div>
   </div>
@@ -81,21 +88,20 @@
   }
   function closeMessage() { $("messageModal").style.display = "none"; }
 
-  function openPreview(fileId) {
-    $("previewBody").innerHTML = '<img src="https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w1600" alt="preview">';
-    $("previewModal").style.display = "block";
-  }
-  function closePreview() {
-    $("previewModal").style.display = "none";
-    $("previewBody").innerHTML = "";
-  }
+  // openPreview / closePreview / previewZoom* come from /js/preview-modal.js
 
   function doLogout() { hepiAuth.logout(); }
 
   function statusPillHtml(status) {
     const s = safeStr(status);
-    const cls = s === "selesai" ? "queueStatusSelesai" : (s === "revisi" ? "queueStatusRevisi" : "queueStatusPending");
-    const label = s === "selesai" ? "Selesai" : (s === "revisi" ? "Perlu Revisi" : "Menunggu");
+    const cls = s === "selesai" ? "queueStatusSelesai"
+      : s === "revisi" ? "queueStatusRevisi"
+      : s === "dibatalkan" ? "queueStatusBatal"
+      : "queueStatusPending";
+    const label = s === "selesai" ? "Selesai"
+      : s === "revisi" ? "Perlu Revisi"
+      : s === "dibatalkan" ? "Dibatalkan"
+      : "Menunggu";
     return '<span class="' + cls + '">' + escapeHtml(label) + '</span>';
   }
 
@@ -108,6 +114,7 @@
   }
 
   function rowHtml(r) {
+    const canCancel = r.status === "pending" || r.status === "revisi";
     return '<tr>'
       + '<td>' + escapeHtml((r.dateCreated || '').slice(0, 10)) + '</td>'
       + '<td>' + escapeHtml(r.namaListing || r.fileId) + '</td>'
@@ -116,12 +123,13 @@
       + '<td>' + (r.catatan ? escapeHtml(r.catatan) : '—') + '</td>'
       + '<td>' + statusPillHtml(r.status) + '</td>'
       + '<td>' + (r.feedback ? escapeHtml(r.feedback) : '—') + '</td>'
+      + '<td>' + (canCancel ? '<button type="button" class="queueTextBtn" onclick="cancelMyRevision(\'' + escapeHtml(r.revisionId) + '\', this)">Batalkan</button>' : '—') + '</td>'
       + '</tr>';
   }
 
   function tableHtml(rows) {
     return '<table class="scoreTable queueTable"><thead><tr>'
-      + '<th>Tanggal</th><th>Listing</th><th>Perubahan</th><th>Foto</th><th>Catatan</th><th>Status</th><th>Feedback</th>'
+      + '<th>Tanggal</th><th>Listing</th><th>Perubahan</th><th>Foto</th><th>Catatan</th><th>Status</th><th>Feedback</th><th>Aksi</th>'
       + '</tr></thead><tbody>' + rows.map(rowHtml).join('') + '</tbody></table>';
   }
 
@@ -131,6 +139,20 @@
       return;
     }
     $("historyArea").innerHTML = '<div class="scoreTableWrap">' + tableHtml(rows) + '</div>';
+  }
+
+  function cancelMyRevision(revisionId, btnEl) {
+    if (!confirm("Batalkan revisi ini?")) return;
+    const original = btnEl.innerHTML;
+    btnEl.disabled = true;
+    btnEl.innerHTML = "...";
+    hepiApi("/api/revision/cancel", { body: { revisionId: revisionId } })
+      .then(function() { loadMine(); })
+      .catch(function(err) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = original;
+        showMessage(err && err.message ? err.message : String(err));
+      });
   }
 
   function loadMine() {

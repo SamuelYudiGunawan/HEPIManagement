@@ -2627,12 +2627,20 @@
     let revisiTargetFileId = "";
 
     function revisiFieldOptionsHtml() {
-      return REVISI_FIELDS.map(function(f) {
-        return '<option value="' + f.field + '">' + f.label + '</option>';
-      }).join("");
+      // No field pre-selected on purpose: a real production bug happened
+      // when "Area" (the old default first option) was left untouched and
+      // an agent typed a price into it, silently mislabeling a harga change
+      // as an area change. Forcing an explicit choice here closes that off.
+      return '<option value="" disabled selected>Pilih field...</option>'
+        + REVISI_FIELDS.map(function(f) {
+          return '<option value="' + f.field + '">' + f.label + '</option>';
+        }).join("");
     }
 
     function revisiValueControlHtml(fieldKey) {
+      if (!fieldKey) {
+        return '<input class="revisiFieldValue" placeholder="Pilih field dulu" style="flex:1;" disabled>';
+      }
       if (fieldKey === "furnished") {
         return '<select class="revisiFieldValue" style="flex:1;">'
           + '<option value="Ya">Ya</option>'
@@ -2650,7 +2658,7 @@
       row.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px;";
       row.innerHTML =
         '<select class="revisiFieldSelect" style="flex:1;width:auto;">' + revisiFieldOptionsHtml() + '</select>'
-        + '<span class="revisiValueWrap" style="flex:1;display:flex;">' + revisiValueControlHtml(REVISI_FIELDS[0].field) + '</span>'
+        + '<span class="revisiValueWrap" style="flex:1;display:flex;">' + revisiValueControlHtml("") + '</span>'
         // button{width:100%} is the global default for this page — without
         // an explicit override here the "remove row" button tries to fill
         // the whole flex row and squeezes the select/value inputs down to
@@ -2680,12 +2688,18 @@
 
     function submitRevisiModal() {
       const rows = Array.prototype.slice.call(document.querySelectorAll("#revisiFieldRows .revisiFieldRowInput"));
-      const perubahan = rows.map(function(row) {
+      const entries = rows.map(function(row) {
         return {
           field: row.querySelector(".revisiFieldSelect").value,
           nilaiBaru: safeStr(row.querySelector(".revisiFieldValue").value).trim()
         };
       }).filter(function(p) { return p.nilaiBaru; });
+
+      if (entries.some(function(p) { return !p.field; })) {
+        alert("Pilih field untuk setiap baris yang sudah diisi nilainya.");
+        return;
+      }
+      const perubahan = entries;
 
       const fotoInput = $("revisiFotoInput");
       const fotoFile = fotoInput.files && fotoInput.files[0];
