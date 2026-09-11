@@ -1216,6 +1216,7 @@
 </style>
   <script src="/js/hepi-api.js"></script>
   <script src="/js/hepi-auth.js"></script>
+  <script src="/js/push-client.js"></script>
   <script src="/js/textsize.js"></script>
 </head>
 <body>
@@ -2852,6 +2853,8 @@
           setTimeout(() => {
             openLoginModal();
           }, 500);
+        } else if (typeof initPushNotifications === "function") {
+          initPushNotifications();
         }
       });
     };

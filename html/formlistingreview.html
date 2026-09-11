@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/styles-v2.css">
   <script src="/js/hepi-api.js"></script>
   <script src="/js/hepi-auth.js"></script>
+  <script src="/js/push-client.js"></script>
   <script src="/js/preview-modal.js"></script>
   <script src="/js/textsize.js"></script>
   <script>
@@ -264,6 +265,7 @@
       return;
     }
     loadQueue();
+    if (typeof initPushNotifications === "function") initPushNotifications();
   }
 
   hepiAuth.onReady(applyAccess);

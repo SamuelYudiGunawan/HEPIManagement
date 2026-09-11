@@ -19,6 +19,7 @@ const activity = require("./lib/activity");
 const importer = require("./lib/import");
 const formListing = require("./lib/formListing");
 const revision = require("./lib/revision");
+const push = require("./lib/push");
 const { hashFile } = require("./lib/assetVersion");
 const session = require("./lib/session");
 const googleSignIn = require("./lib/googleSignIn");
@@ -597,6 +598,24 @@ async function build() {
     const body = req.body || {};
     const { agentCode } = requireSession(req);
     return listings.deleteListing(agentCode, body.fileId);
+  });
+
+  app.get("/api/push/vapid-public-key", async () => {
+    return { key: push.hasVapid() ? push.vapidPublicKey : "" };
+  });
+
+  app.post("/api/push/subscribe", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode } = requireSession(req);
+    return push.saveSubscription(agentCode, body.subscription, req.headers["user-agent"]);
+  });
+
+  app.post("/api/push/unsubscribe", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    requireSession(req);
+    return push.unsubscribe(body.endpoint);
   });
 
   app.get("/api/cron/import", async (req, reply) => {
