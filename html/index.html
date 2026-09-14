@@ -1529,7 +1529,7 @@
             <div class="cselect-opt" data-val="terlama">Terlama</div>
             <div class="cselect-opt" data-val="termahal">Termahal</div>
             <div class="cselect-opt" data-val="termurah">Termurah</div>
-            <div id="todayReviewSortOpt" class="cselect-opt" data-val="listing-revisi-baru" style="display:none;">Listing &amp; Revisi Baru</div>
+            <div id="todayReviewSortOpt" class="cselect-opt" data-val="listing-revisi-baru">Listing &amp; Revisi Baru</div>
           </div>
           <input type="hidden" id="sort" value="terbaru">
         </div>
@@ -2948,10 +2948,6 @@
         if (hepiAuth.isListingEditor()) {
           $("importMonitorNav").style.display = "inline-flex";
           $("todayReviewSortOpt").style.display = "";
-        } else if ($("sort").value === "listing-revisi-baru") {
-          // A saved reviewer-only filter must not leave another user on a
-          // permanently loading screen after logout or account switching.
-          setCselectValue("sort", "terbaru");
         }
         if (!hepiAuth.isLoggedIn()) {
           setTimeout(() => {
@@ -2960,7 +2956,7 @@
         } else if (typeof initPushNotifications === "function") {
           initPushNotifications();
         }
-        if (hepiAuth.isLoggedIn() && hepiAuth.isListingEditor()) {
+        if (hepiAuth.isLoggedIn()) {
           loadTodayReviewItems();
         }
       });

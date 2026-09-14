@@ -595,8 +595,8 @@ async function build() {
 
   app.post("/api/review/today", async (req) => {
     credsOrThrow();
-    const { agentCode } = requireSession(req);
-    return review.listToday(agentCode);
+    requireSession(req);
+    return review.listToday();
   });
 
   app.post("/api/listings/reparse", async (req) => {
