@@ -80,11 +80,6 @@
     white-space: nowrap;
   }
   .todayReviewBtn.active { background: #0d47a1; }
-  .todayReviewLabelShort { display: none; }
-  @media screen and (max-width: 600px) {
-    .todayReviewLabelFull { display: none; }
-    .todayReviewLabelShort { display: inline; }
-  }
 
   .headerLogout {
     width: auto !important;
@@ -1547,7 +1542,7 @@
           </div>
           <input type="hidden" id="sort" value="terbaru">
         </div>
-        <button id="todayReviewBtn" type="button" class="todayReviewBtn" onclick="showTodayReviews()"><span class="todayReviewLabelFull">Listing Baru &amp; Revisi</span><span class="todayReviewLabelShort">REVISI</span></button>
+        <button id="todayReviewBtn" type="button" class="todayReviewBtn" onclick="showTodayReviews()">Listing &amp; Revisi Hari Ini</button>
       </div>
     </div>
 
@@ -2085,9 +2080,12 @@
           TODAY_REVIEW_ITEMS = (res && Array.isArray(res.items)) ? res.items : [];
           if (TODAY_REVIEW_MODE_ACTIVE) render();
         })
-        .catch(function() {
+        .catch(function(err) {
           TODAY_REVIEW_ITEMS = [];
-          if (TODAY_REVIEW_MODE_ACTIVE) render();
+          if (TODAY_REVIEW_MODE_ACTIVE) {
+            $("stats").innerHTML = "Gagal memuat listing & revisi hari ini: " + escapeHtml(err && err.message ? err.message : "Unknown error");
+            $("results").innerHTML = "";
+          }
         });
     }
 
