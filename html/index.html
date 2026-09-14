@@ -1287,10 +1287,6 @@
       <div class="sold-buttons" style="margin:10px 0;">
         <button type="button" style="background:#9ca3af;" onclick="addRevisiFieldRow()">+ Tambah Field</button>
       </div>
-      <div class="specGroup" style="margin-top:10px;">
-        <div class="specLabel">Narasi lengkap</div>
-        <textarea id="revisiNarasi" placeholder="Tempel atau edit narasi lengkap yang ingin diajukan..." style="width:100%; min-height:180px;"></textarea>
-      </div>
       <div class="specGroup" style="margin-top:6px;">
         <div class="specLabel">Foto referensi (opsional)</div>
         <input type="file" id="revisiFotoInput" accept="image/*">
@@ -2771,27 +2767,9 @@
       $("revisiFieldRows").innerHTML = "";
       addRevisiFieldRow();
       $("revisiFotoInput").value = "";
-      $("revisiNarasi").value = "";
-      $("revisiNarasi").placeholder = "Memuat narasi saat ini...";
-      $("revisiNarasi").disabled = true;
       $("revisiCatatan").value = "";
       $("revisiSubmitStatus").textContent = "";
       $("revisiModal").style.display = "block";
-
-      hepiApi("/api/narrative/" + encodeURIComponent(fileId))
-        .then(function(res) {
-          $("revisiNarasi").disabled = false;
-          if (!res || !res.success) {
-            $("revisiNarasi").placeholder = "Gagal memuat narasi. Tempel narasi lengkap di sini.";
-            return;
-          }
-          $("revisiNarasi").value = res.content || "";
-          $("revisiNarasi").placeholder = "Tempel atau edit narasi lengkap yang ingin diajukan...";
-        })
-        .catch(function() {
-          $("revisiNarasi").disabled = false;
-          $("revisiNarasi").placeholder = "Gagal memuat narasi. Tempel narasi lengkap di sini.";
-        });
     }
 
     function closeRevisiModal() {
@@ -2815,16 +2793,9 @@
 
       const fotoInput = $("revisiFotoInput");
       const fotoFile = fotoInput.files && fotoInput.files[0];
-      const narasi = safeStr($("revisiNarasi").value);
       const catatan = safeStr($("revisiCatatan").value).trim();
-
-      if ($("revisiNarasi").disabled) {
-        alert("Tunggu narasi selesai dimuat dulu.");
-        return;
-      }
-
-      if (!perubahan.length && !fotoFile && !catatan && !narasi.trim()) {
-        alert("Isi minimal satu perubahan, foto, catatan, atau narasi.");
+      if (!perubahan.length && !fotoFile && !catatan) {
+        alert("Isi minimal satu perubahan, foto, atau catatan.");
         return;
       }
 
@@ -2837,7 +2808,6 @@
       fd.append("targetFileId", revisiTargetFileId);
       fd.append("perubahan", JSON.stringify(perubahan));
       fd.append("catatan", catatan);
-      fd.append("narasi", narasi);
       if (fotoFile) fd.append("foto", fotoFile, fotoFile.name);
 
       hepiApi("/api/revision/submit", { formData: fd })
