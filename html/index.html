@@ -2100,7 +2100,9 @@
     function showTodayReviews() {
       TODAY_REVIEW_MODE_ACTIVE = true;
       $("todayReviewBtn").classList.add("active");
-      render();
+      $("stats").innerHTML = "⏳ Memuat listing & revisi hari ini...";
+      $("results").innerHTML = "";
+      loadTodayReviewItems();
     }
 
     function buildCardHtml(x) {
