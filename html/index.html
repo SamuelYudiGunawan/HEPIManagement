@@ -59,8 +59,8 @@
 
   .reviewRevisionSticker {
     position: absolute;
-    top: 16px;
-    right: 16px;
+    top: 12px;
+    left: 12px;
     z-index: 2;
     padding: 5px 9px;
     border-radius: 4px;
@@ -2131,10 +2131,10 @@
       return `
   <div class="card ${sold ? "cardSold" : ""}" id="card-${escapeHtml(x.fileId)}">
     ${sold ? `<div class="soldSticker">SOLD</div>` : ""}
-    ${x._isReviewRevision ? `<div class="reviewRevisionSticker">REVISI BARU</div>` : ""}
 
     <div class="cardMain">
       <div class="thumbWrap">
+        ${x._isReviewRevision ? `<div class="reviewRevisionSticker">REVISI BARU</div>` : ""}
         ${x.thumbnail ? `
           <a href="https://drive.google.com/file/d/${escapeHtml(x.thumbnail)}/view" target="_blank">
           <img class="thumb"
