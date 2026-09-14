@@ -71,6 +71,16 @@
     letter-spacing: .4px;
   }
 
+  .todayReviewBtn {
+    width: auto !important;
+    min-height: 42px;
+    padding: 10px 14px !important;
+    font-size: 14px !important;
+    border-radius: 10px !important;
+    white-space: nowrap;
+  }
+  .todayReviewBtn.active { background: #0d47a1; }
+
   .headerLogout {
     width: auto !important;
     padding: 4px 0 !important;
@@ -1529,10 +1539,10 @@
             <div class="cselect-opt" data-val="terlama">Terlama</div>
             <div class="cselect-opt" data-val="termahal">Termahal</div>
             <div class="cselect-opt" data-val="termurah">Termurah</div>
-            <div id="todayReviewSortOpt" class="cselect-opt" data-val="listing-revisi-baru">Listing &amp; Revisi Baru</div>
           </div>
           <input type="hidden" id="sort" value="terbaru">
         </div>
+        <button id="todayReviewBtn" type="button" class="todayReviewBtn" onclick="showTodayReviews()">Listing &amp; Revisi Baru</button>
       </div>
     </div>
 
@@ -1673,6 +1683,7 @@
 
     let ALL_DATA = [];
     let TODAY_REVIEW_ITEMS = null;
+    let TODAY_REVIEW_MODE_ACTIVE = false;
     let soldFileId = "";
     let soldFileName = "";
 
@@ -1973,6 +1984,8 @@
     }
 
     function resetFilter() {
+      TODAY_REVIEW_MODE_ACTIVE = false;
+      $("todayReviewBtn").classList.remove("active");
       ["keyword", "hargaMin", "hargaMax", "ltMin", "ltMax", "lbMin", "lbMax", "ktMin", "ktMax", "kmMin", "kmMax", "periodeStartTahun", "periodeEndTahun"].forEach(id => {
         $(id).value = "";
       });
@@ -2065,11 +2078,11 @@
       hepiApi("/api/review/today", { body: {} })
         .then(function(res) {
           TODAY_REVIEW_ITEMS = (res && Array.isArray(res.items)) ? res.items : [];
-          if ($("sort").value === "listing-revisi-baru") render();
+          if (TODAY_REVIEW_MODE_ACTIVE) render();
         })
         .catch(function() {
           TODAY_REVIEW_ITEMS = [];
-          if ($("sort").value === "listing-revisi-baru") render();
+          if (TODAY_REVIEW_MODE_ACTIVE) render();
         });
     }
 
@@ -2083,6 +2096,12 @@
       CSELECT_FILTER_IDS.forEach(function(id) {
         setCselectValue(id, state[id]);
       });
+    }
+
+    function showTodayReviews() {
+      TODAY_REVIEW_MODE_ACTIVE = true;
+      $("todayReviewBtn").classList.add("active");
+      render();
     }
 
     function buildCardHtml(x) {
@@ -2366,7 +2385,7 @@
           }
         });
 
-        const isTodayReviewMode = sort === "listing-revisi-baru";
+        const isTodayReviewMode = TODAY_REVIEW_MODE_ACTIVE;
         let data;
 
         if (isTodayReviewMode) {
@@ -2947,7 +2966,6 @@
       hepiAuth.onReady(function() {
         if (hepiAuth.isListingEditor()) {
           $("importMonitorNav").style.display = "inline-flex";
-          $("todayReviewSortOpt").style.display = "";
         }
         if (!hepiAuth.isLoggedIn()) {
           setTimeout(() => {
