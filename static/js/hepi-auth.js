@@ -7,9 +7,44 @@
 
   function notifyReady() {
     isReady = true;
+    renderNavbar();
     var callbacks = readyCallbacks;
     readyCallbacks = [];
     callbacks.forEach(function (cb) { cb(session); });
+  }
+
+  function isListingEditor() {
+    var status = String(session.status || "").toLowerCase();
+    return status === "admin" || status === "adminkantor";
+  }
+
+  function renderNavbar() {
+    var nav = document.querySelector(".appNav");
+    if (!nav) return;
+
+    var admin = isListingEditor();
+    var current = window.location.pathname.replace(/\/$/, "") || "/";
+    var links = [
+      ["/", "Cari Listing", false],
+      ["/activity", "Aktivitas", false],
+      ["/scores", "Skor", false],
+      ["/history", "History", false],
+      ["/closing", "Closing", true],
+      ["/inputlisting", "Input Listing", true],
+      ["/form-listing", "Tambah Listing", false],
+      ["/form-listing-review", "Review Form", true],
+      ["/revisi-listing", "Revisi", false],
+      ["/revisi-review", "Review Revisi", true],
+      ["/import-monitor", "Monitor Import", true]
+    ];
+
+    nav.innerHTML = links
+      .filter(function (link) { return !link[2] || admin; })
+      .map(function (link) {
+        var active = current === link[0] ? " active" : "";
+        return '<a class="appNavLink' + active + '" href="' + link[0] + '" target="_top">' + link[1] + '</a>';
+      })
+      .join("");
   }
 
   function loadSession() {
@@ -57,10 +92,8 @@
     getSession: function () { return session; },
     isLoggedIn: function () { return !!session.loggedIn; },
     isAdmin: function () { return String(session.status || "").toLowerCase() === "admin"; },
-    isListingEditor: function () {
-      var status = String(session.status || "").toLowerCase();
-      return status === "admin" || status === "adminkantor";
-    },
+    isListingEditor: isListingEditor,
+    renderNavbar: renderNavbar,
     getNama: function () { return session.nama || session.agentCode || ""; },
     getAgentCode: function () { return session.agentCode || ""; },
     getStatus: function () { return session.status || ""; },
@@ -75,8 +108,12 @@
   loadSession();
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", showPendingSsoError);
+    document.addEventListener("DOMContentLoaded", function () {
+      renderNavbar();
+      showPendingSsoError();
+    });
   } else {
+    renderNavbar();
     showPendingSsoError();
   }
 })();

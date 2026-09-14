@@ -19,6 +19,7 @@ const activity = require("./lib/activity");
 const importer = require("./lib/import");
 const formListing = require("./lib/formListing");
 const revision = require("./lib/revision");
+const review = require("./lib/review");
 const push = require("./lib/push");
 const { hashFile } = require("./lib/assetVersion");
 const session = require("./lib/session");
@@ -37,7 +38,8 @@ const PAGE_FILES = {
   "/form-listing": "formlisting.html",
   "/form-listing-review": "formlistingreview.html",
   "/revisi-listing": "revisilisting.html",
-  "/revisi-review": "revisireview.html"
+  "/revisi-review": "revisireview.html",
+  "/import-monitor": "importmonitor.html"
 };
 
 // Every page requires login, including "/" — an unauthenticated visitor is
@@ -395,6 +397,7 @@ async function build() {
 
   app.get("/api/narrative/:id", async (req) => {
     credsOrThrow();
+    requireSession(req);
     return listings.getNarrativeText(req.params.id);
   });
 
@@ -406,6 +409,7 @@ async function build() {
 
   app.get("/api/file-download/:id", async (req, reply) => {
     credsOrThrow();
+    requireSession(req);
     const id = req.params.id;
     if (!/^[A-Za-z0-9_-]+$/.test(id)) return reply.code(400).send("bad id");
     const { buffer, name, mimeType } = await drive.getFileBytes(id);
@@ -427,6 +431,7 @@ async function build() {
 
   app.post("/api/narratives", async (req) => {
     credsOrThrow();
+    requireSession(req);
     const ids = (req.body && req.body.fileIds) || [];
     return listings.getNarrativeTexts(ids);
   });
@@ -544,7 +549,8 @@ async function build() {
       fields.targetFileId,
       parsePerubahan(fields.perubahan),
       fields.catatan,
-      files
+      files,
+      fields.narasi
     );
   });
 
@@ -582,8 +588,38 @@ async function build() {
       agentCode,
       fields.revisionId,
       parsePerubahan(fields.perubahan),
-      files
+      files,
+      fields.narasi
     );
+  });
+
+  app.post("/api/review/today", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    return review.listToday(agentCode);
+  });
+
+  app.post("/api/listings/reparse", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode } = requireSession(req);
+    return listings.reparseListing(agentCode, body.fileId);
+  });
+
+  app.get("/api/import/status", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    const agent = await agents.requireAgent(agentCode);
+    if (!agents.isListingEditor(agent)) throw new Error("Hanya admin atau adminkantor yang bisa akses.");
+    return importer.getImportStatus();
+  });
+
+  app.get("/api/import/audit", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    const agent = await agents.requireAgent(agentCode);
+    if (!agents.isListingEditor(agent)) throw new Error("Hanya admin atau adminkantor yang bisa akses.");
+    return importer.auditImport();
   });
 
   app.post("/api/listings/reassign-agent", async (req) => {

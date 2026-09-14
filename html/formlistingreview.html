@@ -68,6 +68,7 @@
       <a class="appNavLink" href="/history" target="_top">History</a>
       <a class="appNavLink" href="/form-listing" target="_top">Tambah Listing</a>
       <a class="appNavLink" href="/revisi-listing" target="_top">Revisi</a>
+      <a class="appNavLink" href="/import-monitor" target="_top">Monitor Import</a>
     </nav>
     <button class="headerLogout" onclick="doLogout()">Logout</button>
   </div>
@@ -180,6 +181,7 @@
   function rowHtml(r) {
     return '<tr>'
       + '<td><b>' + escapeHtml(r.kodeAgen) + '</b></td>'
+      + '<td>' + (r.judul ? escapeHtml(r.judul) : "—") + '</td>'
       + '<td>' + escapeHtml(r.tanggal) + '</td>'
       + '<td>' + (r.narasi ? '<button type="button" class="queueIconBtn" title="Lihat narasi" onclick="previewNarasi(\'' + escapeHtml(r.fileId) + '\')">📃</button>' : "—") + '</td>'
       + '<td>' + formIconHtml(r) + '</td>'
@@ -192,7 +194,7 @@
 
   function tableHtml(rows) {
     return '<table class="scoreTable queueTable"><thead><tr>'
-      + '<th>Kode Agen</th><th>Tanggal</th><th>Narasi</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Selesai</th><th>Folder</th>'
+      + '<th>Kode Agen</th><th>Judul</th><th>Tanggal</th><th>Narasi</th><th>Form</th><th>Foto</th><th>Feedback</th><th>Selesai</th><th>Folder</th>'
       + '</tr></thead><tbody>' + rows.map(rowHtml).join("") + '</tbody></table>';
   }
 

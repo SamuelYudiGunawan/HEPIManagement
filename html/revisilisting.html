@@ -117,6 +117,7 @@
 
   function rowHtml(r) {
     const canCancel = r.status === "pending" || r.status === "revisi";
+    const canReviseAgain = r.status === "revisi" && !!safeStr(r.feedback).trim();
     return '<tr>'
       + '<td>' + escapeHtml((r.dateCreated || '').slice(0, 10)) + '</td>'
       + '<td>' + escapeHtml(r.namaListing || r.fileId) + '</td>'
@@ -125,7 +126,11 @@
       + '<td>' + (r.catatan ? escapeHtml(r.catatan) : '—') + '</td>'
       + '<td>' + statusPillHtml(r.status) + '</td>'
       + '<td>' + (r.feedback ? escapeHtml(r.feedback) : '—') + '</td>'
-      + '<td>' + (canCancel ? '<button type="button" class="queueTextBtn" onclick="cancelMyRevision(\'' + escapeHtml(r.revisionId) + '\', this)">Batalkan</button>' : '—') + '</td>'
+      + '<td>'
+      + (canReviseAgain ? '<a class="queueTextBtn" href="/?revisi=' + encodeURIComponent(r.fileId || "") + '" target="_top">✏️ Revisi Lagi</a>' : '')
+      + (canCancel ? '<button type="button" class="queueTextBtn" onclick="cancelMyRevision(\'' + escapeHtml(r.revisionId) + '\', this)">Batalkan</button>' : '')
+      + (!canReviseAgain && !canCancel ? '—' : '')
+      + '</td>'
       + '</tr>';
   }
 

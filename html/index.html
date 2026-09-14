@@ -57,6 +57,20 @@
     border-bottom-color: #1565c0;
   }
 
+  .reviewRevisionSticker {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 2;
+    padding: 5px 9px;
+    border-radius: 4px;
+    background: #f59e0b;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .4px;
+  }
+
   .headerLogout {
     width: auto !important;
     padding: 4px 0 !important;
@@ -1263,6 +1277,10 @@
       <div class="sold-buttons" style="margin:10px 0;">
         <button type="button" style="background:#9ca3af;" onclick="addRevisiFieldRow()">+ Tambah Field</button>
       </div>
+      <div class="specGroup" style="margin-top:10px;">
+        <div class="specLabel">Narasi lengkap</div>
+        <textarea id="revisiNarasi" placeholder="Tempel atau edit narasi lengkap yang ingin diajukan..." style="width:100%; min-height:180px;"></textarea>
+      </div>
       <div class="specGroup" style="margin-top:6px;">
         <div class="specLabel">Foto referensi (opsional)</div>
         <input type="file" id="revisiFotoInput" accept="image/*">
@@ -1302,6 +1320,7 @@
       <a class="appNavLink" href="/history" target="_top">History</a>
       <a class="appNavLink" href="/form-listing" target="_top">Tambah Listing</a>
       <a class="appNavLink" href="/revisi-listing" target="_top">Revisi</a>
+      <a id="importMonitorNav" class="appNavLink" href="/import-monitor" target="_top" style="display:none;">Monitor Import</a>
     </nav>
     <button class="headerLogout" onclick="doLogout()">Logout</button>
   </div>
@@ -1510,6 +1529,7 @@
             <div class="cselect-opt" data-val="terlama">Terlama</div>
             <div class="cselect-opt" data-val="termahal">Termahal</div>
             <div class="cselect-opt" data-val="termurah">Termurah</div>
+            <div id="todayReviewSortOpt" class="cselect-opt" data-val="listing-revisi-baru" style="display:none;">Listing &amp; Revisi Baru</div>
           </div>
           <input type="hidden" id="sort" value="terbaru">
         </div>
@@ -1645,10 +1665,14 @@
 
     const _idMatch = String(new URLSearchParams(location.search).get("id") || "").match(/^[A-Za-z0-9_-]+/);
     const INITIAL_ID = _idMatch ? _idMatch[0] : "";
+    const _revisiMatch = String(new URLSearchParams(location.search).get("revisi") || "").match(/^[A-Za-z0-9_-]+/);
+    const INITIAL_REVISI_ID = _revisiMatch ? _revisiMatch[0] : "";
     const SCRIPT_URL = window.location.origin + "/";
     const isDetailMode = !!INITIAL_ID;
+    let initialRevisiOpened = false;
 
     let ALL_DATA = [];
+    let TODAY_REVIEW_ITEMS = null;
     let soldFileId = "";
     let soldFileName = "";
 
@@ -1887,6 +1911,11 @@
         .then(function(data) {
           ALL_DATA = Array.isArray(data) ? data : [];
 
+          if (INITIAL_REVISI_ID && !initialRevisiOpened) {
+            initialRevisiOpened = true;
+            setTimeout(function() { openRevisiModal(INITIAL_REVISI_ID); }, 0);
+          }
+
           if (isDetailMode) {
             render();
           } else if (reRenderAfter) {
@@ -2031,6 +2060,19 @@
       });
     }
 
+    function loadTodayReviewItems() {
+      TODAY_REVIEW_ITEMS = null;
+      hepiApi("/api/review/today", { body: {} })
+        .then(function(res) {
+          TODAY_REVIEW_ITEMS = (res && Array.isArray(res.items)) ? res.items : [];
+          if ($("sort").value === "listing-revisi-baru") render();
+        })
+        .catch(function() {
+          TODAY_REVIEW_ITEMS = [];
+          if ($("sort").value === "listing-revisi-baru") render();
+        });
+    }
+
     function applyFilterState(state) {
       if (!state) return;
 
@@ -2065,6 +2107,7 @@
       return `
   <div class="card ${sold ? "cardSold" : ""}" id="card-${escapeHtml(x.fileId)}">
     ${sold ? `<div class="soldSticker">SOLD</div>` : ""}
+    ${x._isReviewRevision ? `<div class="reviewRevisionSticker">REVISI BARU</div>` : ""}
 
     <div class="cardMain">
       <div class="thumbWrap">
@@ -2323,7 +2366,28 @@
           }
         });
 
-        let data = ALL_DATA.filter(x => {
+        const isTodayReviewMode = sort === "listing-revisi-baru";
+        let data;
+
+        if (isTodayReviewMode) {
+          if (TODAY_REVIEW_ITEMS === null) {
+            $("stats").innerHTML = "⏳ Memuat listing dan revisi hari ini...";
+            $("results").innerHTML = "";
+            return;
+          }
+
+          data = TODAY_REVIEW_ITEMS.map(function(item) {
+            const listing = item.listing || {};
+            const row = Object.assign({}, listing);
+            if (!row.fileId) row.fileId = listing.fileId || item.id || (item.revision && item.revision.fileId) || "";
+            if (!row.area) row.area = item.title || "-";
+            if (!row.agen) row.agen = item.agent || "";
+            if (!row.dateCreated) row.dateCreated = item.dateCreated || "";
+            if (item.kind === "revision") row._isReviewRevision = true;
+            return row;
+          }).filter(function(row) { return !!row.fileId; });
+        } else {
+          data = ALL_DATA.filter(x => {
           if (!x) return false;
 
           const areaT = normalizeText(x.area);
@@ -2376,18 +2440,24 @@
             // below the ones that actually match (see hadapMissRank below).
             (!hadapArr.length || hadapArr.includes(x.hadap) || !x.hadap) &&
             (!furnished || x.furnished === furnished)
-          );
-        });
+            );
+          });
+        }
 
         // 0 = matches the selected hadap (or no hadap filter active), 1 = no
         // hadap on file at all. Used to push "unknown hadap" listings to the
         // bottom of the results without excluding them outright.
         const hadapMissRank = x => (hadapArr.length && !x.hadap) ? 1 : 0;
 
+        // The review mode already arrives newest-first from the server.
+        if (isTodayReviewMode) {
+          $("stats").innerHTML = `Iyes! ${data.length} listing/revisi baru hari ini.`;
+        }
+
         // sold always sinks to the very bottom, regardless of sort mode
         const soldRank = x => isSold(x) ? 1 : 0;
 
-        if (sort === "termurah") {
+        if (!isTodayReviewMode && sort === "termurah") {
           data.sort((a, b) => {
             const soldDiff = soldRank(a) - soldRank(b);
             if (soldDiff !== 0) return soldDiff;
@@ -2396,7 +2466,7 @@
             return Number(a.harga || 0) - Number(b.harga || 0);
           });
         } 
-        else if (sort === "termahal") {
+        else if (!isTodayReviewMode && sort === "termahal") {
           data.sort((a, b) => {
             const soldDiff = soldRank(a) - soldRank(b);
             if (soldDiff !== 0) return soldDiff;
@@ -2405,7 +2475,7 @@
             return Number(b.harga || 0) - Number(a.harga || 0);
           });
         } 
-        else if (sort === "terlama") {
+        else if (!isTodayReviewMode && sort === "terlama") {
           data.sort((a, b) => {
             const soldDiff = soldRank(a) - soldRank(b);
             if (soldDiff !== 0) return soldDiff;
@@ -2416,7 +2486,7 @@
             return dateA - dateB;
           });
         } 
-        else {
+        else if (!isTodayReviewMode) {
           data.sort(function(a, b) {
             const soldDiff = soldRank(a) - soldRank(b);
             if (soldDiff !== 0) return soldDiff;
@@ -2433,7 +2503,7 @@
           });
         }
 
-        $("stats").innerHTML = `Iyes! ${data.length} listing ditemukan.`;
+        if (!isTodayReviewMode) $("stats").innerHTML = `Iyes! ${data.length} listing ditemukan.`;
 
         if (!data.length) {
           $("results").innerHTML = `
@@ -2679,9 +2749,27 @@
       $("revisiFieldRows").innerHTML = "";
       addRevisiFieldRow();
       $("revisiFotoInput").value = "";
+      $("revisiNarasi").value = "";
+      $("revisiNarasi").placeholder = "Memuat narasi saat ini...";
+      $("revisiNarasi").disabled = true;
       $("revisiCatatan").value = "";
       $("revisiSubmitStatus").textContent = "";
       $("revisiModal").style.display = "block";
+
+      hepiApi("/api/narrative/" + encodeURIComponent(fileId))
+        .then(function(res) {
+          $("revisiNarasi").disabled = false;
+          if (!res || !res.success) {
+            $("revisiNarasi").placeholder = "Gagal memuat narasi. Tempel narasi lengkap di sini.";
+            return;
+          }
+          $("revisiNarasi").value = res.content || "";
+          $("revisiNarasi").placeholder = "Tempel atau edit narasi lengkap yang ingin diajukan...";
+        })
+        .catch(function() {
+          $("revisiNarasi").disabled = false;
+          $("revisiNarasi").placeholder = "Gagal memuat narasi. Tempel narasi lengkap di sini.";
+        });
     }
 
     function closeRevisiModal() {
@@ -2705,10 +2793,16 @@
 
       const fotoInput = $("revisiFotoInput");
       const fotoFile = fotoInput.files && fotoInput.files[0];
+      const narasi = safeStr($("revisiNarasi").value);
       const catatan = safeStr($("revisiCatatan").value).trim();
 
-      if (!perubahan.length && !fotoFile && !catatan) {
-        alert("Isi minimal satu perubahan, foto, atau catatan.");
+      if ($("revisiNarasi").disabled) {
+        alert("Tunggu narasi selesai dimuat dulu.");
+        return;
+      }
+
+      if (!perubahan.length && !fotoFile && !catatan && !narasi.trim()) {
+        alert("Isi minimal satu perubahan, foto, catatan, atau narasi.");
         return;
       }
 
@@ -2721,6 +2815,7 @@
       fd.append("targetFileId", revisiTargetFileId);
       fd.append("perubahan", JSON.stringify(perubahan));
       fd.append("catatan", catatan);
+      fd.append("narasi", narasi);
       if (fotoFile) fd.append("foto", fotoFile, fotoFile.name);
 
       hepiApi("/api/revision/submit", { formData: fd })
@@ -2850,12 +2945,23 @@
       loadData(!!restoredFilterState);
 
       hepiAuth.onReady(function() {
+        if (hepiAuth.isListingEditor()) {
+          $("importMonitorNav").style.display = "inline-flex";
+          $("todayReviewSortOpt").style.display = "block";
+        } else if ($("sort").value === "listing-revisi-baru") {
+          // A saved reviewer-only filter must not leave another user on a
+          // permanently loading screen after logout or account switching.
+          setCselectValue("sort", "terbaru");
+        }
         if (!hepiAuth.isLoggedIn()) {
           setTimeout(() => {
             openLoginModal();
           }, 500);
         } else if (typeof initPushNotifications === "function") {
           initPushNotifications();
+        }
+        if (hepiAuth.isLoggedIn() && hepiAuth.isListingEditor()) {
+          loadTodayReviewItems();
         }
       });
     };

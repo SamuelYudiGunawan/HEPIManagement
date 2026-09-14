@@ -22,10 +22,14 @@
     .revisiFieldRow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
     .revisiFieldRow label { min-width: 110px; font-weight: 700; font-size: 13px; }
     .revisiOld { color: #999; text-decoration: line-through; font-size: 13px; }
-    .revisiNewInput { flex: 1; min-width: 120px; }
+    .revisiRequestedNew { color: #0d47a1; font-weight: 700; font-size: 13px; }
+    .revisiNarasiEdit { margin-top: 12px; }
+    .revisiNarasiInput { width: 100%; min-height: 380px !important; font-family: inherit; line-height: 1.45; resize: vertical; }
     .revisiPhotoRow { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
     .revisiCatatan { font-size: 13px; color: #555; margin: 8px 0; }
-    .revisiActions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .revisiActions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+    .revisiActions button { width: auto !important; min-width: 0; flex: 1 1 0; white-space: nowrap; padding: 8px 6px !important; font-size: 13px !important; border-radius: 8px !important; }
+    .revisiActions .btnDanger { flex: 0 0 112px; }
   </style>
 </head>
 <body>
@@ -71,6 +75,7 @@
       <a class="appNavLink" href="/history" target="_top">History</a>
       <a class="appNavLink" href="/form-listing" target="_top">Tambah Listing</a>
       <a class="appNavLink active" href="/revisi-listing" target="_top">Revisi</a>
+      <a class="appNavLink" href="/import-monitor" target="_top">Monitor Import</a>
     </nav>
     <button class="headerLogout" onclick="doLogout()">Logout</button>
   </div>
@@ -165,11 +170,11 @@
   }
 
   function fieldRowHtml(p, idx) {
-    return '<div class="revisiFieldRow" data-field="' + escapeHtml(p.field) + '">'
+    return '<div class="revisiFieldRow" data-field="' + escapeHtml(p.field) + '" data-new-value="' + escapeHtml(p.nilaiBaru || '') + '">'
       + '<label>' + escapeHtml(p.label || p.field) + '</label>'
       + '<span class="revisiOld">' + escapeHtml(p.nilaiLama || '-') + '</span>'
       + '<span>→</span>'
-      + '<input class="revisiNewInput" value="' + escapeHtml(p.nilaiBaru || '') + '">'
+      + '<span class="revisiRequestedNew">' + escapeHtml(p.nilaiBaru || '-') + '</span>'
       + '</div>';
   }
 
@@ -184,10 +189,16 @@
       + (r.thumbnailId ? '<button type="button" class="queueIconBtn" title="Lihat foto listing saat ini" onclick="openPreview(\'' + escapeHtml(r.thumbnailId) + '\')">📷</button>' : '')
       + '<button type="button" class="queueIconBtn" title="Lihat narasi (.txt) saat ini" onclick="previewCurrentNarasi(\'' + escapeHtml(r.fileId) + '\')">📃</button>'
       + (r.folderLink ? '<a class="queueIconBtn" title="Lihat folder di Drive" href="' + escapeHtml(r.folderLink) + '" target="_blank">📁</a>' : '')
-      + '<div class="smallHint">' + escapeHtml((r.dateCreated || '').slice(0, 10)) + '</div></div>'
+      + '<span class="smallHint" style="display:inline-block; margin-left:8px; white-space:nowrap;">• ' + escapeHtml((r.dateCreated || '').slice(0, 10)) + '</span></div>'
       + statusPillHtml(r.status)
       + '</div>'
       + '<div class="revisiFields">' + fieldsHtml + '</div>'
+      + (isResolved ? '' :
+        '<div class="revisiNarasiEdit">'
+        + '<div class="specLabel">Narasi update</div>'
+        + '<textarea class="revisiNarasiInput" placeholder="Memuat narasi saat ini..." disabled></textarea>'
+        + '<div class="smallHint">Edit narasi lengkap di sini. Field yang diminta agen tetap ditampilkan di atas sebagai panduan.</div>'
+        + '</div>')
       + '<div class="revisiPhotoRow">'
       + (r.fotoBaruId
           ? '<button type="button" class="queueIconBtn" title="Lihat foto referensi dari agen" onclick="openPreview(\'' + escapeHtml(r.fotoBaruId) + '\')">📷 Referensi agen</button>'
@@ -198,7 +209,7 @@
       + (r.feedback ? '<div class="revisiCatatan"><b>Feedback:</b> ' + escapeHtml(r.feedback) + '</div>' : '')
       + '<div class="revisiActions">'
       + (isResolved ? '' :
-          '<button type="button" onclick="applyRevision(\'' + escapeHtml(r.revisionId) + '\', this)">✅ Terapkan</button>'
+          '<button type="button" onclick="applyRevision(\'' + escapeHtml(r.revisionId) + '\', this)">💾 Simpan Revisi</button>'
           + '<button type="button" class="btnSecondary" onclick="openFeedbackModal(\'' + escapeHtml(r.revisionId) + '\')">💬 Feedback</button>'
           + '<button type="button" class="btnDanger" onclick="cancelRevisionRow(\'' + escapeHtml(r.revisionId) + '\', this)">❌ Batalkan</button>')
       + '</div>'
@@ -217,10 +228,11 @@
 
     if (done.length) {
       html += '<button type="button" class="btnSecondary" style="margin-top:14px;" onclick="toggleDone()">'
-        + (doneVisible ? "▾ Sembunyikan" : "▸ Tampilkan") + ' ' + done.length + ' Selesai</button>';
+        + (doneVisible ? "▾ Sembunyikan" : "▸ Tampilkan") + ' Riwayat Selesai (' + done.length + ')</button>';
       if (doneVisible) html += '<div style="margin-top:10px;">' + done.map(cardHtml).join('') + '</div>';
     }
     $("queueArea").innerHTML = html;
+    loadNarasiEditors();
   }
 
   function toggleDone() {
@@ -233,9 +245,9 @@
     $("queueArea").innerHTML = '<div class="emptyState">Memuat...</div>';
     hepiApi("/api/revision/queue", { body: {} })
       .then(function(res) {
-        // Server returns newest-first (shared with the agent's own history
-        // ordering need) — reverse just for this page's own display.
-        queueRows = ((res && res.rows) || []).slice().reverse();
+        // Admin review order is intentional: active requests are FIFO, while
+        // completed requests remain newest-first.
+        queueRows = (res && res.rows) || [];
         renderQueue();
       })
       .catch(function(err) {
@@ -246,6 +258,40 @@
       });
   }
 
+  function loadNarasiEditors() {
+    Array.prototype.slice.call(document.querySelectorAll(".revisiNarasiInput")).forEach(function(textarea) {
+      const card = textarea.closest(".revisiCard");
+      if (!card || textarea.dataset.loading === "1" || textarea.dataset.loaded === "1") return;
+      const revisionId = card.getAttribute("data-revision-id");
+      const row = queueRows.find(function(r) { return r.revisionId === revisionId; });
+      if (!row || !row.fileId) return;
+
+      if (row.narasi) {
+        textarea.value = row.narasi;
+        textarea.disabled = false;
+        textarea.dataset.loaded = "1";
+        return;
+      }
+
+      textarea.dataset.loading = "1";
+      hepiApi("/api/narrative/" + encodeURIComponent(row.fileId))
+        .then(function(res) {
+          textarea.dataset.loading = "0";
+          textarea.dataset.loaded = "1";
+          if (!res || !res.success) {
+            textarea.placeholder = "Gagal memuat narasi: " + ((res && res.error) || "Unknown error");
+            return;
+          }
+          textarea.value = res.content || "";
+          textarea.disabled = false;
+        })
+        .catch(function(err) {
+          textarea.dataset.loading = "0";
+          textarea.placeholder = "Gagal memuat narasi: " + (err && err.message ? err.message : String(err));
+        });
+    });
+  }
+
   function applyRevision(revisionId, btnEl) {
     const card = document.querySelector('.revisiCard[data-revision-id="' + revisionId.replace(/"/g, '') + '"]');
     if (!card) return;
@@ -253,14 +299,25 @@
     const perubahan = Array.prototype.slice.call(card.querySelectorAll('.revisiFieldRow')).map(function(row) {
       return {
         field: row.getAttribute('data-field'),
-        nilaiBaru: row.querySelector('.revisiNewInput').value
+        nilaiBaru: row.getAttribute('data-new-value')
       };
     }).filter(function(p) { return p.nilaiBaru && String(p.nilaiBaru).trim(); });
+
+    const narasiInput = card.querySelector(".revisiNarasiInput");
+    if (narasiInput && narasiInput.disabled) {
+      alert("Tunggu narasi selesai dimuat dulu.");
+      return;
+    }
+    const narasi = narasiInput ? safeStr(narasiInput.value) : "";
+    if (narasiInput && !narasi.trim()) {
+      alert("Narasi tidak boleh kosong.");
+      return;
+    }
 
     const fotoInput = card.querySelector('.revisiFotoInput');
     const fotoFile = fotoInput && fotoInput.files && fotoInput.files[0];
 
-    if (!confirm(fotoFile || perubahan.length ? "Terapkan perubahan ini ke listing?" : "Tandai revisi ini selesai (tanpa perubahan otomatis)?")) return;
+    if (!confirm("Simpan narasi ini dan tandai revisi selesai?")) return;
 
     const original = btnEl.innerHTML;
     btnEl.disabled = true;
@@ -269,6 +326,7 @@
     const fd = new FormData();
     fd.append("revisionId", revisionId);
     fd.append("perubahan", JSON.stringify(perubahan));
+    if (narasiInput) fd.append("narasi", narasi);
     if (fotoFile) fd.append("foto", fotoFile, fotoFile.name);
 
     hepiApi("/api/revision/apply", { formData: fd })
