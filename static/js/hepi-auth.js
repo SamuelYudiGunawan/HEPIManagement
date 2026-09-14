@@ -14,7 +14,7 @@
   }
 
   function isListingEditor() {
-    var status = String(session.status || "").toLowerCase();
+    var status = String(session.status || "").toLowerCase().trim();
     return status === "admin" || status === "adminkantor";
   }
 
@@ -91,7 +91,7 @@
     },
     getSession: function () { return session; },
     isLoggedIn: function () { return !!session.loggedIn; },
-    isAdmin: function () { return String(session.status || "").toLowerCase() === "admin"; },
+    isAdmin: function () { return String(session.status || "").toLowerCase().trim() === "admin"; },
     isListingEditor: isListingEditor,
     renderNavbar: renderNavbar,
     getNama: function () { return session.nama || session.agentCode || ""; },

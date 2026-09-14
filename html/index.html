@@ -2947,7 +2947,7 @@
       hepiAuth.onReady(function() {
         if (hepiAuth.isListingEditor()) {
           $("importMonitorNav").style.display = "inline-flex";
-          $("todayReviewSortOpt").style.display = "block";
+          $("todayReviewSortOpt").style.display = "";
         } else if ($("sort").value === "listing-revisi-baru") {
           // A saved reviewer-only filter must not leave another user on a
           // permanently loading screen after logout or account switching.
