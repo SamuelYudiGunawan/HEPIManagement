@@ -95,6 +95,22 @@
   }
   .headerLogout:hover { background: transparent !important; opacity: .7; }
 
+  .notificationCenter { position: relative; margin-left: auto; }
+  .notificationBell { position: relative; width: auto !important; min-height: auto !important; padding: 4px 8px !important; font-size: 20px !important; background: transparent !important; box-shadow: none !important; }
+  .notificationBadge { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; align-items: center; justify-content: center; border-radius: 999px; background: #c62828; color: #fff; font-size: 10px; font-weight: 900; }
+  .notificationPanel { position: absolute; z-index: 1000; top: 38px; right: 0; width: min(360px, calc(100vw - 20px)); max-height: 420px; overflow-y: auto; background: #fff; border: 1px solid #dbe3ec; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+  .notificationPanelHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #e8edf3; color: #183b59; }
+  .notificationClearAll { width: auto !important; padding: 4px 0 !important; min-height: auto !important; background: transparent !important; color: #c62828 !important; box-shadow: none !important; font-size: 12px !important; }
+  .notificationItem { display: flex; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #edf1f5; }
+  .notificationItem:last-child { border-bottom: 0; }
+  .notificationItem a { flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+  .notificationItem b, .notificationItem span, .notificationItem small { display: block; }
+  .notificationItem b { color: #1565c0; font-size: 13px; }
+  .notificationItem span { margin-top: 3px; color: #334e68; font-size: 12px; line-height: 1.35; word-break: break-word; }
+  .notificationItem small { margin-top: 5px; color: #8091a5; font-size: 10px; }
+  .notificationItem > button { width: auto !important; min-height: auto !important; padding: 0 4px !important; background: transparent !important; color: #8795a5 !important; box-shadow: none !important; font-size: 20px !important; }
+  .notificationEmpty { padding: 18px 12px; color: #718096; font-size: 13px; text-align: center; }
+
   .textSizeBar {
     display: flex;
     align-items: center;
@@ -660,6 +676,7 @@
     }
     .siteNav { padding: 10px 12px; gap: 10px 14px; }
     .headerLogout { font-size: 14px !important; padding: 4px 0 !important; }
+    .notificationPanel { position: fixed; top: 56px; right: 10px; }
     .textSizeBar { padding: 8px 10px; gap: 6px; }
     .textSizeBtn { min-height: 40px !important; padding: 8px 8px !important; font-size: 15px !important; }
 
