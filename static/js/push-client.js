@@ -67,7 +67,14 @@
 
     navigator.serviceWorker.ready.then(function (registration) {
       registration.pushManager.getSubscription().then(function (existing) {
-        if (existing) return; // already subscribed on this device
+        // Re-save an existing browser subscription as well. The same browser
+        // can be used by different agents, and the Sheet may have lost the
+        // row, so returning here can silently leave notifications assigned to
+        // the previous account.
+        if (existing) {
+          subscribeNow(registration).catch(function () {});
+          return;
+        }
 
         if (Notification.permission === "granted") {
           subscribeNow(registration).catch(function () {});

@@ -1674,6 +1674,8 @@
     const INITIAL_ID = _idMatch ? _idMatch[0] : "";
     const _revisiMatch = String(new URLSearchParams(location.search).get("revisi") || "").match(/^[A-Za-z0-9_-]+/);
     const INITIAL_REVISI_ID = _revisiMatch ? _revisiMatch[0] : "";
+    const _revisionTicketMatch = String(new URLSearchParams(location.search).get("revisionId") || "").match(/^[A-Za-z0-9_-]+/);
+    const INITIAL_REVISION_TICKET_ID = _revisionTicketMatch ? _revisionTicketMatch[0] : "";
     const SCRIPT_URL = window.location.origin + "/";
     const isDetailMode = !!INITIAL_ID;
     let initialRevisiOpened = false;
@@ -1921,7 +1923,7 @@
 
           if (INITIAL_REVISI_ID && !initialRevisiOpened) {
             initialRevisiOpened = true;
-            setTimeout(function() { openRevisiModal(INITIAL_REVISI_ID); }, 0);
+            setTimeout(function() { openRevisiModal(INITIAL_REVISI_ID, INITIAL_REVISION_TICKET_ID); }, 0);
           }
 
           if (isDetailMode) {
@@ -2718,6 +2720,7 @@
       { field: "furnished", label: "Furnished" }
     ];
     let revisiTargetFileId = "";
+    let revisiTargetRevisionId = "";
 
     function revisiFieldOptionsHtml() {
       // No field pre-selected on purpose: a real production bug happened
@@ -2765,8 +2768,9 @@
       wrap.appendChild(row);
     }
 
-    function openRevisiModal(fileId) {
+    function openRevisiModal(fileId, revisionId) {
       revisiTargetFileId = fileId;
+      revisiTargetRevisionId = revisionId || "";
       $("revisiFieldRows").innerHTML = "";
       addRevisiFieldRow();
       $("revisiFotoInput").value = "";
@@ -2809,6 +2813,7 @@
 
       const fd = new FormData();
       fd.append("targetFileId", revisiTargetFileId);
+      if (revisiTargetRevisionId) fd.append("revisionId", revisiTargetRevisionId);
       fd.append("perubahan", JSON.stringify(perubahan));
       fd.append("catatan", catatan);
       if (fotoFile) fd.append("foto", fotoFile, fotoFile.name);

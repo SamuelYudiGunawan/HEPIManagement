@@ -550,7 +550,8 @@ async function build() {
       parsePerubahan(fields.perubahan),
       fields.catatan,
       files,
-      fields.narasi
+      fields.narasi,
+      fields.revisionId
     );
   });
 

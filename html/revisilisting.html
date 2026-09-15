@@ -127,7 +127,7 @@
       + '<td>' + statusPillHtml(r.status) + '</td>'
       + '<td>' + (r.feedback ? escapeHtml(r.feedback) : '—') + '</td>'
       + '<td>'
-      + (canReviseAgain ? '<a class="queueTextBtn" href="/?revisi=' + encodeURIComponent(r.fileId || "") + '" target="_top">✏️ Revisi Lagi</a>' : '')
+      + (canReviseAgain ? '<a class="queueTextBtn" href="/?revisi=' + encodeURIComponent(r.fileId || "") + '&revisionId=' + encodeURIComponent(r.revisionId || "") + '" target="_top">✏️ Revisi Lagi</a>' : '')
       + (canCancel ? '<button type="button" class="queueTextBtn" onclick="cancelMyRevision(\'' + escapeHtml(r.revisionId) + '\', this)">Batalkan</button>' : '')
       + (!canReviseAgain && !canCancel ? '—' : '')
       + '</td>'
