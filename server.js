@@ -21,6 +21,7 @@ const formListing = require("./lib/formListing");
 const revision = require("./lib/revision");
 const review = require("./lib/review");
 const push = require("./lib/push");
+const notifications = require("./lib/notifications");
 const { hashFile } = require("./lib/assetVersion");
 const session = require("./lib/session");
 const googleSignIn = require("./lib/googleSignIn");
@@ -666,6 +667,19 @@ async function build() {
     const body = req.body || {};
     requireSession(req);
     return push.unsubscribe(body.endpoint);
+  });
+
+  app.get("/api/notifications", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    return { notifications: await notifications.listForAgent(agentCode) };
+  });
+
+  app.post("/api/notifications/clear", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    const body = req.body || {};
+    return notifications.clear(agentCode, body.all ? "" : body.id);
   });
 
   app.get("/api/cron/import", async (req, reply) => {

@@ -45,6 +45,61 @@
         return '<a class="appNavLink' + active + '" href="' + link[0] + '" target="_top">' + link[1] + '</a>';
       })
       .join("");
+    renderNotificationCenter();
+  }
+
+  function notificationEscape(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function renderNotificationCenter() {
+    if (!session.loggedIn) return;
+    var logout = document.querySelector(".headerLogout");
+    if (!logout || document.getElementById("notificationCenter")) return;
+    var wrap = document.createElement("div");
+    wrap.id = "notificationCenter";
+    wrap.className = "notificationCenter";
+    wrap.innerHTML = '<button type="button" class="notificationBell" aria-label="Notifikasi" title="Notifikasi">🔔<span class="notificationBadge" style="display:none"></span></button>'
+      + '<div class="notificationPanel" style="display:none"><div class="notificationPanelHead"><b>Notifikasi</b><button type="button" class="notificationClearAll">Hapus semua</button></div><div class="notificationItems"></div></div>';
+    logout.parentNode.insertBefore(wrap, logout);
+    wrap.querySelector(".notificationBell").addEventListener("click", function (event) {
+      event.stopPropagation();
+      var panel = wrap.querySelector(".notificationPanel");
+      panel.style.display = panel.style.display === "none" ? "block" : "none";
+      if (panel.style.display === "block") loadNotifications();
+    });
+    wrap.querySelector(".notificationClearAll").addEventListener("click", function () {
+      hepiApi("/api/notifications/clear", { body: { all: true } }).then(loadNotifications);
+    });
+    wrap.querySelector(".notificationItems").addEventListener("click", function (event) {
+      var clear = event.target.closest("[data-notification-clear]");
+      if (!clear) return;
+      event.stopPropagation();
+      hepiApi("/api/notifications/clear", { body: { id: clear.getAttribute("data-notification-clear") } }).then(loadNotifications);
+    });
+    document.addEventListener("click", function (event) {
+      if (!wrap.contains(event.target)) wrap.querySelector(".notificationPanel").style.display = "none";
+    });
+    loadNotifications();
+  }
+
+  function loadNotifications() {
+    var wrap = document.getElementById("notificationCenter");
+    if (!wrap) return;
+    hepiApi("/api/notifications").then(function (result) {
+      var items = (result && result.notifications) || [];
+      var badge = wrap.querySelector(".notificationBadge");
+      badge.textContent = items.length > 99 ? "99+" : String(items.length);
+      badge.style.display = items.length ? "inline-flex" : "none";
+      var target = wrap.querySelector(".notificationItems");
+      target.innerHTML = items.length ? items.map(function (item) {
+        var when = new Date(item.dateCreated).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+        return '<div class="notificationItem"><a href="' + notificationEscape(item.url || "/") + '" target="_top"><b>' + notificationEscape(item.title) + '</b><span>' + notificationEscape(item.body).replace(/\n/g, "<br>") + '</span><small>' + notificationEscape(when) + '</small></a><button type="button" aria-label="Hapus notifikasi" title="Hapus notifikasi" data-notification-clear="' + notificationEscape(item.id) + '">×</button></div>';
+      }).join("") : '<div class="notificationEmpty">Tidak ada notifikasi.</div>';
+    }).catch(function () {});
   }
 
   function loadSession() {
