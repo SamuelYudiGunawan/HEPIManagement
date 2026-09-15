@@ -540,6 +540,7 @@
   .formActions { margin-top: 20px; }
 
   .scoreList { display: flex; flex-direction: column; gap: 14px; }
+  .scoreTotalRow td { background: #f4f8fc; color: #183b59; border-top: 2px solid #b9d2ea; }
   .scoreRow { display: grid; grid-template-columns: minmax(90px, 28%) 1fr auto; gap: 10px; align-items: center; }
   .scoreName { font-size: 22px; font-weight: 800; color: #222; word-break: break-word; }
   .scoreTrack { background: #e8eef6; border-radius: 999px; height: 28px; overflow: hidden; }

@@ -163,6 +163,16 @@
         + '<td>' + escapeHtml(kurang) + '</td>'
         + '</tr>';
     });
+    const totals = (month && month.totals) || {};
+    table += '<tr class="scoreTotalRow">'
+      + '<td></td><td><b>Total</b></td>'
+      + '<td><b>' + escapeHtml(totals.listing || 0) + '</b></td>'
+      + '<td><b>' + escapeHtml(totals.konten || 0) + '</b></td>'
+      + '<td><b>' + escapeHtml(totals.posting || 0) + '</b></td>'
+      + '<td><b>' + escapeHtml(totals.survey || 0) + '</b></td>'
+      + '<td><b>' + escapeHtml(totals.closing || 0) + '</b></td>'
+      + '<td><b>' + escapeHtml(totals.skor || 0) + '</b></td>'
+      + '<td></td><td></td></tr>';
     table += '</tbody></table>';
     $("tableArea").innerHTML = table;
   }
