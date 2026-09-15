@@ -72,9 +72,9 @@ curl -fsS "https://YOUR-DOMAIN/api/cron/import?token=CRON_SECRET"
 
 The handler:
 
-- 09:00–18:00 (Asia/Jakarta): looks for new/changed `.txt` files, waits 5 minutes, then imports
-- 18:00: full Drive scan
-- If a batch hits the time limit, the next cron continues the queue
+- Sunday at 02:00 (Asia/Jakarta): starts the weekly full Drive scan
+- The cron does not scan automatically when a `.txt` file changes; listing and revision submissions update their own data directly
+- If the weekly batch hits the time limit, the next cron continues that weekly queue
 
 Until this cron is stable, you can leave GAS import on.
 
