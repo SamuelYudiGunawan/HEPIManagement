@@ -606,6 +606,19 @@ async function build() {
     return listings.reparseListing(agentCode, body.fileId);
   });
 
+  app.post("/api/listings/reparse-all", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    const agent = await agents.requireAgent(agentCode);
+    if (!agents.isListingEditor(agent)) throw new Error("Hanya admin atau adminkantor yang bisa akses.");
+    // Start the same full importer used for a parser migration, but return
+    // immediately so the browser can keep showing the queue in the monitor.
+    importer.runImport(true, req.log).catch((error) => {
+      req.log.error({ err: error.message || String(error) }, "reparse-all failed");
+    });
+    return { ok: true, started: true };
+  });
+
   app.get("/api/import/status", async (req) => {
     credsOrThrow();
     const { agentCode } = requireSession(req);
