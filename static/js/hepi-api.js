@@ -28,6 +28,15 @@ if ("serviceWorker" in navigator) {
     // server.js rewrites this literal path to a content-hashed /assets/<hash>/sw-v2.js
     // URL when serving this file — the explicit scope keeps it controlling the
     // whole site even though it's served from a nested path.
-    navigator.serviceWorker.register("/sw-v2.js", { scope: "/" }).catch(function() {});
+    window.hepiServiceWorkerReady = navigator.serviceWorker.register("/sw-v2.js", { scope: "/" })
+      .then(function(registration) {
+        // Ask the browser to check the content-hashed worker immediately. This
+        // prevents a stale worker from surviving after a deploy.
+        return registration.update().catch(function() { return registration; });
+      })
+      .catch(function(error) {
+        console.error("[push] service worker registration failed", error);
+        throw error;
+      });
   });
 }

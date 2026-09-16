@@ -1,4 +1,5 @@
-const CACHE = "hepi-static-v4";
+const CACHE = "hepi-static-v5";
+console.log("[SW] Loaded:", self.location.href);
 // styles/js are now served from content-hashed /assets/<hash>/... URLs (see
 // server.js) — a given hash never changes meaning, so those are safe to
 // cache-first forever and don't need to be precached by exact path here.
@@ -51,18 +52,37 @@ self.addEventListener("fetch", function(event) {
 });
 
 self.addEventListener("push", function(event) {
-  let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch (e) {}
-  const title = data.title || "HEPI Property";
-  const url = data.url || "/";
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body || "",
+  event.waitUntil((async function() {
+    let data = {};
+    const raw = event.data ? event.data.text() : "";
+    console.log("[SW] PUSH EVENT RECEIVED", raw);
+    if (raw) {
+      try {
+        data = JSON.parse(raw) || {};
+      } catch (e) {
+        // Keep notifications visible even if an older server sends plain text.
+        console.error("[SW] JSON parse failed", e);
+        data = { body: raw };
+      }
+    }
+    const title = String(data.title || "HEPI Property");
+    const body = String(data.body || "Ada update baru.");
+    const url = data.url || "/";
+    console.log("[SW] Showing:", { title: title, body: body });
+    await self.registration.showNotification(title, {
+      body: body,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
+      tag: "hepi-" + Date.now(),
+      renotify: true,
       data: { url: url }
-    })
-  );
+    });
+    console.log("[SW] showNotification SUCCESS");
+  })().catch(function(error) {
+    // Keep the failure visible in the worker console instead of silently
+    // letting Chrome display its generic background-update notification.
+    console.error("[push] showNotification failed", error);
+  }));
 });
 
 self.addEventListener("notificationclick", function(event) {

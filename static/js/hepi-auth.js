@@ -63,16 +63,34 @@
     wrap.id = "notificationCenter";
     wrap.className = "notificationCenter";
     wrap.innerHTML = '<button type="button" class="notificationBell" aria-label="Notifikasi" title="Notifikasi">🔔<span class="notificationBadge" style="display:none"></span></button>'
-      + '<div class="notificationPanel" style="display:none"><div class="notificationPanelHead"><b>Notifikasi</b><button type="button" class="notificationClearAll">Hapus semua</button></div><div class="notificationItems"></div></div>';
+      + '<div class="notificationPanel" style="display:none"><div class="notificationPanelHead"><b>Notifikasi</b><span><button type="button" class="notificationEnable" title="Daftar ulang push notification">Aktifkan ulang</button> <button type="button" class="notificationClearAll">Hapus semua</button></span></div><div class="notificationPushStatus"><span class="notificationPushSummary">Memeriksa status push...</span><button type="button" class="notificationPushRefresh">Refresh</button><button type="button" class="notificationPushTest">Test</button></div><div class="notificationItems"></div></div>';
     logout.parentNode.insertBefore(wrap, logout);
     wrap.querySelector(".notificationBell").addEventListener("click", function (event) {
       event.stopPropagation();
       var panel = wrap.querySelector(".notificationPanel");
       panel.style.display = panel.style.display === "none" ? "block" : "none";
-      if (panel.style.display === "block") loadNotifications();
+      if (panel.style.display === "block") {
+        loadNotifications();
+        loadPushStatus();
+      }
     });
     wrap.querySelector(".notificationClearAll").addEventListener("click", function () {
       hepiApi("/api/notifications/clear", { body: { all: true } }).then(loadNotifications);
+    });
+    wrap.querySelector(".notificationEnable").addEventListener("click", function () {
+      if (typeof window.resetPushNotifications !== "function") return;
+      window.resetPushNotifications().then(function () {
+        alert("Notifikasi berhasil didaftarkan ulang di perangkat ini.");
+      }).catch(function (error) {
+        alert((error && error.message) || "Notifikasi belum berhasil diaktifkan.");
+      });
+    });
+    wrap.querySelector(".notificationPushRefresh").addEventListener("click", loadPushStatus);
+    wrap.querySelector(".notificationPushTest").addEventListener("click", function () {
+      if (typeof window.testLocalNotification !== "function") return;
+      window.testLocalNotification().catch(function (error) {
+        alert((error && error.message) || "Test notification gagal.");
+      });
     });
     wrap.querySelector(".notificationItems").addEventListener("click", function (event) {
       var clear = event.target.closest("[data-notification-clear]");
@@ -84,6 +102,21 @@
       if (!wrap.contains(event.target)) wrap.querySelector(".notificationPanel").style.display = "none";
     });
     loadNotifications();
+  }
+
+  function loadPushStatus() {
+    var wrap = document.getElementById("notificationCenter");
+    if (!wrap || typeof window.getPushDiagnostic !== "function") return;
+    var target = wrap.querySelector(".notificationPushSummary");
+    window.getPushDiagnostic().then(function (status) {
+      var permission = status.notificationPermission;
+      var subscription = status.subscription ? "subscription aktif" : "belum terdaftar";
+      var sw = status.serviceWorkerState || "belum aktif";
+      target.textContent = "Izin: " + permission + " · SW: " + sw + " · " + subscription;
+      target.title = status.endpoint || "Belum ada endpoint push";
+    }).catch(function (error) {
+      target.textContent = "Status push gagal dibaca: " + (error.message || "unknown error");
+    });
   }
 
   function loadNotifications() {

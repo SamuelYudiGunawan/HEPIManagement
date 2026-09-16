@@ -59,25 +59,121 @@
       applicationServerKey: urlBase64ToUint8Array(res.key)
     });
     await hepiApi("/api/push/subscribe", { body: { subscription: subscription.toJSON() } });
+    return { ok: true };
   }
+
+  function pushErrorMessage(error) {
+    if (Notification.permission === "denied") {
+      return "Notifikasi sedang diblokir browser. Buka Site settings lalu ubah Notifications menjadi Allow.";
+    }
+    return (error && error.message) || "Notifikasi belum berhasil diaktifkan.";
+  }
+
+  async function getRegistration() {
+    if (window.hepiServiceWorkerReady) return window.hepiServiceWorkerReady;
+    const registration = await navigator.serviceWorker.register("/sw-v2.js", { scope: "/" });
+    await registration.update().catch(function() {});
+    return registration;
+  }
+
+  window.getPushDiagnostic = async function () {
+    const result = {
+      notificationPermission: "Notification" in window ? Notification.permission : "unsupported",
+      serviceWorkerSupported: "serviceWorker" in navigator,
+      pushSupported: "PushManager" in window,
+      serviceWorkerRegistration: false,
+      serviceWorkerState: null,
+      serviceWorkerUrl: null,
+      subscription: false,
+      endpoint: null,
+      vapidConfigured: false
+    };
+    try {
+      const vapid = await hepiApi("/api/push/vapid-public-key");
+      result.vapidConfigured = !!(vapid && vapid.key);
+    } catch (error) {
+      result.error = error.message;
+    }
+    if (!result.serviceWorkerSupported) return result;
+    try {
+      const registration = await getRegistration();
+      result.serviceWorkerRegistration = !!registration;
+      if (registration && registration.active) {
+        result.serviceWorkerState = registration.active.state;
+        result.serviceWorkerUrl = registration.active.scriptURL;
+      }
+      if (registration && result.pushSupported) {
+        const subscription = await registration.pushManager.getSubscription();
+        result.subscription = !!subscription;
+        result.endpoint = subscription ? subscription.endpoint : null;
+      }
+    } catch (error) {
+      result.error = error.message;
+    }
+    return result;
+  };
+
+  window.testLocalNotification = async function () {
+    if (!supported()) throw new Error("Browser ini belum mendukung push notification.");
+    if (Notification.permission !== "granted") throw new Error(pushErrorMessage());
+    const registration = await getRegistration();
+    await registration.showNotification("HEPI Test", {
+      body: "Kalau ini muncul, Notification API dan service worker sudah bekerja.",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: "hepi-local-test-" + Date.now(),
+      data: { url: "/" }
+    });
+    return { ok: true };
+  };
+
+  async function enablePush(forceReset) {
+    if (!supported()) throw new Error("Browser ini belum mendukung push notification.");
+    if (Notification.permission === "denied") throw new Error(pushErrorMessage());
+
+    const permission = Notification.permission === "granted"
+      ? "granted"
+      : await Notification.requestPermission();
+    if (permission !== "granted") throw new Error(pushErrorMessage());
+
+    const registration = await getRegistration();
+    const existing = await registration.pushManager.getSubscription();
+    if (forceReset && existing) await existing.unsubscribe();
+    return subscribeNow(registration);
+  }
+
+  window.resetPushNotifications = function () {
+    return enablePush(true).then(function(result) {
+      window.dispatchEvent(new CustomEvent("hepi-push-status", { detail: { ok: true } }));
+      return result;
+    }).catch(function(error) {
+      console.error("[push] reset failed", error);
+      window.dispatchEvent(new CustomEvent("hepi-push-status", { detail: { ok: false, message: pushErrorMessage(error) } }));
+      throw error;
+    });
+  };
 
   window.initPushNotifications = function () {
     if (!supported()) return;
     if (Notification.permission === "denied") return;
 
-    navigator.serviceWorker.ready.then(function (registration) {
+    getRegistration().then(function (registration) {
       registration.pushManager.getSubscription().then(function (existing) {
         // Re-save an existing browser subscription as well. The same browser
         // can be used by different agents, and the Sheet may have lost the
         // row, so returning here can silently leave notifications assigned to
         // the previous account.
         if (existing) {
-          subscribeNow(registration).catch(function () {});
+          subscribeNow(registration).catch(function (error) {
+            console.error("[push] existing subscription refresh failed", error);
+          });
           return;
         }
 
         if (Notification.permission === "granted") {
-          subscribeNow(registration).catch(function () {});
+          subscribeNow(registration).catch(function (error) {
+            console.error("[push] subscription failed", error);
+          });
           return;
         }
 
@@ -85,10 +181,18 @@
 
         showBanner(function () {
           Notification.requestPermission().then(function (perm) {
-            if (perm === "granted") subscribeNow(registration).catch(function () {});
+            if (perm === "granted") {
+              subscribeNow(registration).catch(function (error) {
+                console.error("[push] subscription failed", error);
+              });
+            }
           });
         });
+      }).catch(function(error) {
+        console.error("[push] initialization failed", error);
       });
+    }).catch(function(error) {
+      console.error("[push] service worker unavailable", error);
     });
   };
 })();
