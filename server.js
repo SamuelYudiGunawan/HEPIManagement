@@ -96,10 +96,11 @@ function registerAssetRoute(app) {
     }
 
     const ext = path.extname(abs).toLowerCase();
-    reply
+    const response = reply
       .header("Cache-Control", "public, max-age=31536000, immutable")
-      .type(ASSET_CONTENT_TYPES[ext] || "application/octet-stream")
-      .send(body);
+      .type(ASSET_CONTENT_TYPES[ext] || "application/octet-stream");
+    if (rel === "sw-v2.js") response.header("Service-Worker-Allowed", "/");
+    response.send(body);
   });
 }
 

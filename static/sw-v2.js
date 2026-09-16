@@ -1,4 +1,4 @@
-const CACHE = "hepi-static-v5";
+const CACHE = "hepi-static-v6";
 console.log("[SW] Loaded:", self.location.href);
 // styles/js are now served from content-hashed /assets/<hash>/... URLs (see
 // server.js) — a given hash never changes meaning, so those are safe to
