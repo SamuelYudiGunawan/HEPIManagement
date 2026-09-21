@@ -1,10 +1,9 @@
-const CACHE = "hepi-static-v6";
+const CACHE = "hepi-static-v7";
 console.log("[SW] Loaded:", self.location.href);
 // styles/js are now served from content-hashed /assets/<hash>/... URLs (see
 // server.js) — a given hash never changes meaning, so those are safe to
 // cache-first forever and don't need to be precached by exact path here.
 const ASSETS = [
-  "/",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/icon-512.png"
@@ -12,7 +11,17 @@ const ASSETS = [
 
 self.addEventListener("install", function(event) {
   event.waitUntil(
-    caches.open(CACHE).then(function(cache) { return cache.addAll(ASSETS); }).then(function() {
+    caches.open(CACHE).then(function(cache) {
+      // One unavailable optional asset must not cancel the whole installation.
+      // Caching "/" was also unsafe: it could preserve a login redirect or a
+      // stale authenticated HTML page and leave mobile launches on a blank/
+      // splash-like screen after a deploy.
+      return Promise.all(ASSETS.map(function(url) {
+        return cache.add(url).catch(function(error) {
+          console.warn("[SW] optional precache failed", url, error);
+        });
+      }));
+    }).then(function() {
       return self.skipWaiting();
     })
   );
@@ -33,7 +42,14 @@ self.addEventListener("fetch", function(event) {
   if (url.pathname.indexOf("/api/") === 0) return;
 
   if (req.mode === "navigate") {
-    event.respondWith(fetch(req).catch(function() { return caches.match("/"); }));
+    event.respondWith(fetch(req).catch(function() {
+      return caches.match(req).then(function(cached) {
+        return cached || new Response("Aplikasi sedang offline. Periksa koneksi internet.", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        });
+      });
+    }));
     return;
   }
 

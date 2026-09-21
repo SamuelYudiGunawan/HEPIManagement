@@ -27,7 +27,7 @@ const session = require("./lib/session");
 const googleSignIn = require("./lib/googleSignIn");
 const STATIC_DIR = path.join(__dirname, "static");
 const HTML_DIR = path.join(__dirname, "html");
-const BODY_LIMIT = 32 * 1024 * 1024;
+const BODY_LIMIT = 64 * 1024 * 1024;
 
 const PAGE_FILES = {
   "/": "index.html",
@@ -449,14 +449,13 @@ async function build() {
 
   app.post("/api/input-listing", async (req) => {
     credsOrThrow();
+    const { agentCode } = requireSession(req);
     const isMulti = typeof req.isMultipart === "function" && req.isMultipart();
     if (isMulti) {
       const { fields, files } = await readMultipart(req);
-      const { agentCode } = requireSession(req);
       return listings.submitOneListing(agentCode, fields, files);
     }
     const body = req.body || {};
-    const { agentCode } = requireSession(req);
     return listings.submitOneListing(agentCode, body, {});
   });
 
@@ -495,8 +494,8 @@ async function build() {
 
   app.post("/api/form-listing/submit", async (req) => {
     credsOrThrow();
-    const { fields, files } = await readMultipart(req);
     const { agentCode } = requireSession(req);
+    const { fields, files } = await readMultipart(req);
     return formListing.submitOneForm(agentCode, fields, files);
   });
 
@@ -528,8 +527,8 @@ async function build() {
 
   app.post("/api/form-listing/edit", async (req) => {
     credsOrThrow();
-    const { fields, files } = await readMultipart(req);
     const { agentCode } = requireSession(req);
+    const { fields, files } = await readMultipart(req);
     return formListing.editSubmission(agentCode, fields.fileId, fields, files);
   });
 
@@ -544,8 +543,8 @@ async function build() {
 
   app.post("/api/revision/submit", async (req) => {
     credsOrThrow();
-    const { fields, files } = await readMultipart(req);
     const { agentCode } = requireSession(req);
+    const { fields, files } = await readMultipart(req);
     return revision.submitRevision(
       agentCode,
       fields.targetFileId,
@@ -585,8 +584,8 @@ async function build() {
 
   app.post("/api/revision/apply", async (req) => {
     credsOrThrow();
-    const { fields, files } = await readMultipart(req);
     const { agentCode } = requireSession(req);
+    const { fields, files } = await readMultipart(req);
     return revision.applyRevision(
       agentCode,
       fields.revisionId,

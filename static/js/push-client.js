@@ -71,6 +71,10 @@
 
   async function getRegistration() {
     if (window.hepiServiceWorkerReady) return window.hepiServiceWorkerReady;
+    const existing = await navigator.serviceWorker.getRegistration("/");
+    if (existing) return existing;
+    // This is only a recovery path for pages that loaded an old cached
+    // hepi-api.js. New pages use the single content-hashed registration above.
     const registration = await navigator.serviceWorker.register("/sw-v2.js", { scope: "/" });
     await registration.update().catch(function() {});
     return registration;
