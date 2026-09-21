@@ -4,10 +4,34 @@
   var session = { loggedIn: false };
   var isReady = false;
   var readyCallbacks = [];
+  var sessionCheckFailed = false;
+  var loginRedirectStarted = false;
+
+  function currentReturnTo() {
+    return window.location.pathname + window.location.search + window.location.hash;
+  }
+
+  function hasSsoError() {
+    try {
+      return new URLSearchParams(window.location.search).has("ssoError");
+    } catch (e) {
+      return false;
+    }
+  }
 
   function notifyReady() {
     isReady = true;
     renderNavbar();
+    // The server protects every application page, but an old PWA/service
+    // worker can still display a cached HTML shell. In that case the page
+    // must recover by starting Google login itself instead of leaving the
+    // agent on a login modal forever. Do not redirect when /api/me itself
+    // failed — that is a network problem, not proof that the session is gone.
+    if (!session.loggedIn && !sessionCheckFailed && !hasSsoError() && !loginRedirectStarted) {
+      loginRedirectStarted = true;
+      window.top.location.href = "/auth/google?returnTo=" + encodeURIComponent(currentReturnTo());
+      return;
+    }
     var callbacks = readyCallbacks;
     readyCallbacks = [];
     callbacks.forEach(function (cb) { cb(session); });
@@ -137,8 +161,10 @@
 
   function loadSession() {
     hepiApi("/api/me").then(function (res) {
+      sessionCheckFailed = false;
       session = (res && res.loggedIn) ? res : { loggedIn: false };
     }).catch(function () {
+      sessionCheckFailed = true;
       session = { loggedIn: false };
     }).then(notifyReady);
   }
@@ -185,8 +211,15 @@
     getNama: function () { return session.nama || session.agentCode || ""; },
     getAgentCode: function () { return session.agentCode || ""; },
     getStatus: function () { return session.status || ""; },
+    sessionCheckFailed: function () { return sessionCheckFailed; },
     login: function (returnTo) {
-      window.top.location.href = "/auth/google?returnTo=" + encodeURIComponent(returnTo || window.location.pathname);
+      var target = returnTo || currentReturnTo();
+      try {
+        var targetUrl = new URL(target, window.location.origin);
+        targetUrl.searchParams.delete("ssoError");
+        target = targetUrl.pathname + targetUrl.search + targetUrl.hash;
+      } catch (e) {}
+      window.top.location.href = "/auth/google?returnTo=" + encodeURIComponent(target);
     },
     logout: function () {
       window.top.location.href = "/auth/logout";

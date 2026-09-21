@@ -295,7 +295,10 @@ async function build() {
       if (route === "/" && req.query.id && isWhatsAppBot(req)) {
         return sendListingPreview(req, reply, req.query.id);
       }
-      if (!PUBLIC_ROUTES.has(route) && !sessionFrom(req)) {
+      // Let the client render the SSO error once so it can show a useful
+      // message instead of immediately starting another OAuth round-trip.
+      const isSsoErrorPage = route === "/" && req.query.ssoError;
+      if (!PUBLIC_ROUTES.has(route) && !sessionFrom(req) && !isSsoErrorPage) {
         // req.url (not the bare route) so a shared detail link's query
         // string (e.g. "/?id=xxxx") survives the login round-trip instead
         // of dropping the visitor onto the generic search page afterward.
@@ -384,8 +387,9 @@ async function build() {
     };
   });
 
-  app.get("/api/listings", async () => {
+  app.get("/api/listings", async (req) => {
     credsOrThrow();
+    requireSession(req);
     return listings.getListings();
   });
 
