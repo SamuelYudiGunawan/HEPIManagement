@@ -81,6 +81,10 @@ function sendHtml(reply, filename) {
       '<link rel="apple-touch-icon" href="/icons/icon-192.png">',
       '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v4.png">'
     )
+    .replaceAll(
+      '<link rel="icon" href="/icons/icon-192.png">',
+      '<link rel="icon" type="image/png" sizes="64x64" href="/favicon-v4.png">'
+    )
     .replaceAll('href="/icons/icon-192.png"', 'href="/icons/hepi-icon-192-v3.png"');
   return reply.type("text/html; charset=utf-8").send(html);
 }

@@ -1,4 +1,4 @@
-const CACHE = "hepi-static-v11";
+const CACHE = "hepi-static-v12";
 console.log("[SW] Loaded:", self.location.href);
 // styles/js are now served from content-hashed /assets/<hash>/... URLs (see
 // server.js) — a given hash never changes meaning, so those are safe to
@@ -6,6 +6,7 @@ console.log("[SW] Loaded:", self.location.href);
 const ASSETS = [
   "/manifest-v3.webmanifest",
   "/apple-touch-icon-v4.png",
+  "/favicon-v4.png",
   "/icons/hepi-icon-192-v3.png",
   "/icons/hepi-icon-512-v3.png"
 ];
