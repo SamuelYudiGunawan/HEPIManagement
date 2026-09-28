@@ -76,16 +76,15 @@ function sendHtml(reply, filename) {
     .replace('src="/js/hepi-auth.js"', 'src="' + assetUrl("js/hepi-auth.js") + '"')
     .replace('src="/js/textsize.js"', 'src="' + assetUrl("js/textsize.js") + '"');
   html = html
-    .replaceAll('href="/manifest.webmanifest"', 'href="/manifest-v4.webmanifest"')
-    .replaceAll(
-      '<link rel="apple-touch-icon" href="/icons/icon-192.png">',
-      '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v4.png">'
-    )
+    .replaceAll('href="/manifest.webmanifest"', 'href="/manifest-v5.webmanifest"')
     .replaceAll(
       '<link rel="icon" href="/icons/icon-192.png">',
       '<link rel="icon" type="image/png" sizes="64x64" href="/favicon-v4.png">'
     )
-    .replaceAll('href="/icons/icon-192.png"', 'href="/icons/hepi-icon-192-v3.png"');
+    .replaceAll('href="/icons/icon-192.png"', 'href="/icons/hepi-icon-192-v3.png"')
+    // Let Safari use the manifest icons for Add to Home Screen. An
+    // apple-touch-icon link takes precedence over the web app manifest.
+    .replace(/<link\b(?=[^>]*\brel=["']apple-touch-icon(?:-precomposed)?["'])[^>]*>/gi, "");
   return reply.type("text/html; charset=utf-8").send(html);
 }
 
