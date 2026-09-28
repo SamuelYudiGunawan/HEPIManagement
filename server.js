@@ -16,6 +16,7 @@ const drive = require("./lib/drive");
 const agents = require("./lib/agents");
 const listings = require("./lib/listings");
 const activity = require("./lib/activity");
+const activityReminder = require("./lib/activityReminder");
 const importer = require("./lib/import");
 const formListing = require("./lib/formListing");
 const revision = require("./lib/revision");
@@ -694,8 +695,17 @@ async function build() {
     }
     credsOrThrow();
     const force = String(req.query.force || "") === "1";
-    if (force) return importer.runImport(true, req.log);
-    return importer.handleCron(req.log);
+    let reminderResult;
+    try {
+      reminderResult = await activityReminder.handleCron(new Date());
+    } catch (err) {
+      req.log.error({ err }, "Daily activity reminder failed");
+      reminderResult = { ok: false, error: "Daily activity reminder failed" };
+    }
+    const importResult = force
+      ? await importer.runImport(true, req.log)
+      : await importer.handleCron(req.log);
+    return Object.assign({}, importResult, { activityReminder: reminderResult });
   });
 
   return app;

@@ -73,6 +73,7 @@ curl -fsS "https://YOUR-DOMAIN/api/cron/import?token=CRON_SECRET"
 The handler:
 
 - Sunday at 02:00 (Asia/Jakarta): starts the weekly full Drive scan
+- At 22:00 (Asia/Jakarta): sends an activity reminder to each active agent/admin account, including adminkantor, that has not entered activity for that day. The same cron call checks this and only sends once per person per day.
 - The cron does not scan automatically when a `.txt` file changes; listing and revision submissions update their own data directly
 - If the weekly batch hits the time limit, the next cron continues that weekly queue
 
