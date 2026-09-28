@@ -1,12 +1,12 @@
-const CACHE = "hepi-static-v9";
+const CACHE = "hepi-static-v10";
 console.log("[SW] Loaded:", self.location.href);
 // styles/js are now served from content-hashed /assets/<hash>/... URLs (see
 // server.js) — a given hash never changes meaning, so those are safe to
 // cache-first forever and don't need to be precached by exact path here.
 const ASSETS = [
-  "/manifest-v2.webmanifest",
-  "/icons/hepi-icon-192-v2.png",
-  "/icons/hepi-icon-512-v2.png"
+  "/manifest-v3.webmanifest",
+  "/icons/hepi-icon-192-v3.png",
+  "/icons/hepi-icon-512-v3.png"
 ];
 
 self.addEventListener("install", function(event) {
@@ -87,8 +87,8 @@ self.addEventListener("push", function(event) {
     console.log("[SW] Showing:", { title: title, body: body });
     await self.registration.showNotification(title, {
       body: body,
-      icon: "/icons/hepi-icon-192-v2.png",
-      badge: "/icons/hepi-icon-192-v2.png",
+      icon: "/icons/hepi-icon-192-v3.png",
+      badge: "/icons/hepi-icon-192-v3.png",
       tag: "hepi-" + Date.now(),
       renotify: true,
       data: { url: url }

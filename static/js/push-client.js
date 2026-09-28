@@ -123,8 +123,8 @@
     const registration = await getRegistration();
     await registration.showNotification("HEPI Test", {
       body: "Kalau ini muncul, Notification API dan service worker sudah bekerja.",
-      icon: "/icons/hepi-icon-192-v2.png",
-      badge: "/icons/hepi-icon-192-v2.png",
+      icon: "/icons/hepi-icon-192-v3.png",
+      badge: "/icons/hepi-icon-192-v3.png",
       tag: "hepi-local-test-" + Date.now(),
       data: { url: "/" }
     });

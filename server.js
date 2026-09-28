@@ -76,8 +76,8 @@ function sendHtml(reply, filename) {
     .replace('src="/js/hepi-auth.js"', 'src="' + assetUrl("js/hepi-auth.js") + '"')
     .replace('src="/js/textsize.js"', 'src="' + assetUrl("js/textsize.js") + '"');
   html = html
-    .replaceAll('href="/manifest.webmanifest"', 'href="/manifest-v2.webmanifest"')
-    .replaceAll('href="/icons/icon-192.png"', 'href="/icons/hepi-icon-192-v2.png"');
+    .replaceAll('href="/manifest.webmanifest"', 'href="/manifest-v3.webmanifest"')
+    .replaceAll('href="/icons/icon-192.png"', 'href="/icons/hepi-icon-192-v3.png"');
   return reply.type("text/html; charset=utf-8").send(html);
 }
 
