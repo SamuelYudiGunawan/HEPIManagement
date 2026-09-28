@@ -53,6 +53,7 @@
 
     <div id="formBox" class="filterBox" style="display:none;">
       <div class="filterTitle">Input Closing</div>
+      <div class="smallHint">Setiap baris menambahkan 1 closing untuk agen dan tanggal yang dipilih.</div>
 
       <div id="agentRows"></div>
 
@@ -115,15 +116,6 @@
     return html;
   }
 
-  function bindJumlahField(input) {
-    input.addEventListener("focus", function() {
-      if (this.value === "0") this.value = "";
-    });
-    input.addEventListener("blur", function() {
-      if (String(this.value).trim() === "") this.value = "0";
-    });
-  }
-
   function refreshRemoveButtons() {
     const rows = document.querySelectorAll("#agentRows .closingRow");
     rows.forEach(function(row) {
@@ -153,14 +145,7 @@
       + '<div class="specLabel">Agent Closing</div>'
       + '<select class="agentSelect">' + agentOptionsHtml(selectedKode) + "</select>"
       + "</div>"
-      + '<div class="specGroup">'
-      + '<div class="specLabel">Jumlah Closing</div>'
-      + '<input class="jumlahInput" type="number" min="0" step="1" value="0">'
-      + "</div>"
       + '<button type="button" class="btnDanger btnRemove">Hapus</button>';
-
-    const jumlah = row.querySelector(".jumlahInput");
-    bindJumlahField(jumlah);
 
     row.querySelector(".btnRemove").addEventListener("click", function() {
       const all = document.querySelectorAll("#agentRows .closingRow");
@@ -252,35 +237,22 @@
 
     const rows = document.querySelectorAll("#agentRows .closingRow");
     const items = [];
-    const seen = {};
     for (let i = 0; i < rows.length; i++) {
       const tanggal = safeStr(rows[i].querySelector(".tanggalInput").value).trim();
       const kode = safeStr(rows[i].querySelector(".agentSelect").value).trim();
-      const jumlahRaw = safeStr(rows[i].querySelector(".jumlahInput").value).trim();
-      if (!kode && !tanggal) continue;
-      if (!kode) {
-        alert("Baris " + (i + 1) + ": pilih Agent Closing.");
-        return;
-      }
+      if (!kode) continue;
       if (!tanggal) {
         alert("Baris " + (i + 1) + ": isi Tanggal Closing.");
         return;
       }
-      const key = kode + "|" + tanggal;
-      if (seen[key]) {
-        alert("Agen yang sama tidak boleh diisi dua kali untuk tanggal yang sama.");
-        return;
-      }
-      seen[key] = true;
       items.push({
         tanggal: tanggal,
-        kode: kode,
-        jumlah: jumlahRaw === "" ? 0 : jumlahRaw
+        kode: kode
       });
     }
 
     if (!items.length) {
-      alert("Isi minimal satu baris: tanggal, agen, dan jumlah closing.");
+      alert("Pilih minimal satu agen untuk mencatat closing.");
       return;
     }
 
@@ -297,10 +269,10 @@
         btn.disabled = false;
         if (res && res.ok) {
           const names = (res.saved || []).map(function(s) {
-            return (s.nama || s.kode) + " " + (s.tanggal || "") + " (" + s.jumlah + ")";
+            return (s.nama || s.kode) + " " + (s.tanggal || "") + " (+" + s.jumlah + ")";
           }).join(", ");
           $("submitStatus").className = "successBanner";
-          $("submitStatus").textContent = "Closing tersimpan: " + names;
+          $("submitStatus").textContent = "Closing ditambahkan: " + names;
           resetAgentRows();
           showMessage("Closing berhasil disimpan.");
           return;
