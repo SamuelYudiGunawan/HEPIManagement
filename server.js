@@ -81,10 +81,15 @@ function sendHtml(reply, filename) {
       '<link rel="icon" href="/icons/icon-192.png">',
       '<link rel="icon" type="image/png" sizes="64x64" href="/favicon-v4.png">'
     )
-    .replaceAll('href="/icons/icon-192.png"', 'href="/icons/hepi-icon-192-v3.png"')
-    // Let Safari use the manifest icons for Add to Home Screen. An
-    // apple-touch-icon link takes precedence over the web app manifest.
-    .replace(/<link\b(?=[^>]*\brel=["']apple-touch-icon(?:-precomposed)?["'])[^>]*>/gi, "");
+    .replaceAll('href="/icons/icon-192.png"', 'href="/icons/hepi-icon-192-v3.png"');
+  // Keep one explicit Apple Home Screen icon link, independent from the
+  // browser favicon and the manifest used by Android.
+  html = html
+    .replace(/<link\b(?=[^>]*\brel=["']apple-touch-icon(?:-precomposed)?["'])[^>]*>/gi, "")
+    .replace(
+      /<\/head>/i,
+      '  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v5.png">\n</head>'
+    );
   return reply.type("text/html; charset=utf-8").send(html);
 }
 
