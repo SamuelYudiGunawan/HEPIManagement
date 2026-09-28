@@ -1,0 +1,31 @@
+{
+  "name": "HEPI Property Listings",
+  "short_name": "HEPI",
+  "description": "Cari listing, input listing, aktivitas agen HEPI Property",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d47a1",
+  "theme_color": "#0d47a1",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/apple-touch-icon-v4.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/hepi-icon-192-v4.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/hepi-icon-512-v4.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

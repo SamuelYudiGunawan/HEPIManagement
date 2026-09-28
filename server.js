@@ -76,7 +76,7 @@ function sendHtml(reply, filename) {
     .replace('src="/js/hepi-auth.js"', 'src="' + assetUrl("js/hepi-auth.js") + '"')
     .replace('src="/js/textsize.js"', 'src="' + assetUrl("js/textsize.js") + '"');
   html = html
-    .replaceAll('href="/manifest.webmanifest"', 'href="/manifest-v3.webmanifest"')
+    .replaceAll('href="/manifest.webmanifest"', 'href="/manifest-v4.webmanifest"')
     .replaceAll(
       '<link rel="apple-touch-icon" href="/icons/icon-192.png">',
       '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v4.png">'

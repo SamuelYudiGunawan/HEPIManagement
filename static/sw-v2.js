@@ -1,14 +1,14 @@
-const CACHE = "hepi-static-v12";
+const CACHE = "hepi-static-v13";
 console.log("[SW] Loaded:", self.location.href);
 // styles/js are now served from content-hashed /assets/<hash>/... URLs (see
 // server.js) — a given hash never changes meaning, so those are safe to
 // cache-first forever and don't need to be precached by exact path here.
 const ASSETS = [
-  "/manifest-v3.webmanifest",
+  "/manifest-v4.webmanifest",
   "/apple-touch-icon-v4.png",
   "/favicon-v4.png",
-  "/icons/hepi-icon-192-v3.png",
-  "/icons/hepi-icon-512-v3.png"
+  "/icons/hepi-icon-192-v4.png",
+  "/icons/hepi-icon-512-v4.png"
 ];
 
 self.addEventListener("install", function(event) {
