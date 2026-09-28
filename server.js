@@ -57,7 +57,14 @@ const PUBLIC_ROUTES = new Set([]);
 // a changed path as a brand-new resource, no manual rename needed anymore.
 function assetUrl(relPath) {
   const abs = path.join(STATIC_DIR, relPath);
-  return "/assets/" + hashFile(abs) + "/" + relPath;
+  let hash = hashFile(abs);
+  if (relPath === "js/hepi-api.js") {
+    // The served hepi-api.js response embeds the service worker's hashed
+    // URL. Include that worker hash here too so a changed worker can't remain
+    // hidden behind the browser's immutable cache for the old JS asset URL.
+    hash += hashFile(path.join(STATIC_DIR, "sw-v2.js"));
+  }
+  return "/assets/" + hash + "/" + relPath;
 }
 
 function sendHtml(reply, filename) {
