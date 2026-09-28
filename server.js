@@ -82,14 +82,17 @@ function sendHtml(reply, filename) {
       '<link rel="icon" type="image/png" sizes="64x64" href="/favicon-v4.png">'
     )
     .replaceAll('href="/icons/icon-192.png"', 'href="/icons/hepi-icon-192-v3.png"');
-  // Keep one explicit Apple Home Screen icon link, independent from the
-  // browser favicon and the manifest used by Android.
-  html = html
-    .replace(/<link\b(?=[^>]*\brel=["']apple-touch-icon(?:-precomposed)?["'])[^>]*>/gi, "")
-    .replace(
-      /<\/head>/i,
-      '  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v5.png">\n</head>'
-    );
+  // Keep Apple's Home Screen icon beside the manifest near the start of
+  // <head>; some install flows scan metadata before reaching page scripts.
+  const appleIconLink = '<link rel="apple-touch-icon" sizes="180x180" type="image/png" href="/apple-touch-icon-v5.png">';
+  const appleIconTag = /<link\b(?=[^>]*\brel=["']apple-touch-icon(?:-precomposed)?["'])[^>]*>/i;
+  if (appleIconTag.test(html)) {
+    html = html.replace(appleIconTag, appleIconLink);
+  } else {
+    html = html.replace(/<head\b[^>]*>/i, function(head) {
+      return head + "\n  " + appleIconLink;
+    });
+  }
   return reply.type("text/html; charset=utf-8").send(html);
 }
 
