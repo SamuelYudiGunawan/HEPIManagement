@@ -101,7 +101,7 @@
       : s === "dibatalkan" ? "queueStatusBatal"
       : "queueStatusPending";
     const label = s === "selesai" ? "Selesai"
-      : s === "revisi" ? "Perlu Revisi"
+      : s === "revisi" ? "Butuh Revisi"
       : s === "dibatalkan" ? "Dibatalkan"
       : "Menunggu";
     return '<span class="' + cls + '">' + escapeHtml(label) + '</span>';

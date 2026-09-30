@@ -330,7 +330,7 @@
   function statusPillHtml(status) {
     const s = safeStr(status);
     const cls = s === "selesai" ? "queueStatusSelesai" : (s === "revisi" ? "queueStatusRevisi" : "queueStatusPending");
-    const label = s === "selesai" ? "Selesai" : (s === "revisi" ? "Perlu Revisi" : "Menunggu");
+    const label = s === "selesai" ? "Selesai" : (s === "revisi" ? "Butuh Revisi" : "Menunggu");
     return '<span class="' + cls + '">' + escapeHtml(label) + '</span>';
   }
 

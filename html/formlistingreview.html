@@ -24,6 +24,10 @@
       }
     } catch (e) {}
   </script>
+  <style>
+    .queueStatusSection { margin-top: 12px; }
+    .queueStatusSectionTitle { margin: 16px 0 10px; font-weight: 800; font-size: 16px; color: #0d47a1; }
+  </style>
 </head>
 <body>
   <div id="loginModal" class="sold-modal">
@@ -198,6 +202,14 @@
       + '</tr></thead><tbody>' + rows.map(rowHtml).join("") + '</tbody></table>';
   }
 
+  function queueSectionHtml(title, rows, emptyMessage) {
+    return '<div class="queueStatusSection">'
+      + '<div class="queueStatusSectionTitle">' + escapeHtml(title) + ' (' + rows.length + ')</div>'
+      + (rows.length ? '<div class="scoreTableWrap">' + tableHtml(rows) + '</div>'
+        : '<div class="emptyState">' + escapeHtml(emptyMessage) + '</div>')
+      + '</div>';
+  }
+
   function toggleDone() {
     doneVisible = !doneVisible;
     renderQueue();
@@ -208,10 +220,14 @@
       $("queueArea").innerHTML = '<div class="emptyState">Belum ada submission.</div>';
       return;
     }
-    const active = queueRows.filter(function(r) { return r.status !== "selesai"; });
+    const waiting = queueRows.filter(function(r) { return r.status !== "revisi" && r.status !== "selesai"; });
+    const waitingRevision = queueRows.filter(function(r) { return r.status === "revisi"; });
     const done = queueRows.filter(function(r) { return r.status === "selesai"; });
 
-    let html = '<div class="scoreTableWrap">' + (active.length ? tableHtml(active) : '<div class="emptyState">Tidak ada yang perlu direview.</div>') + '</div>';
+    let html = queueSectionHtml("Menunggu", waiting, "Tidak ada yang perlu direview.");
+    if (waitingRevision.length) {
+      html += queueSectionHtml("Menunggu Revisi", waitingRevision, "");
+    }
 
     if (done.length) {
       html += '<button type="button" class="btnSecondary" style="margin-top:14px;" onclick="toggleDone()">'

@@ -30,6 +30,8 @@
     .revisiActions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
     .revisiActions button { width: auto !important; min-width: 0; flex: 1 1 0; white-space: nowrap; padding: 8px 6px !important; font-size: 13px !important; border-radius: 8px !important; }
     .revisiActions .btnDanger { flex: 0 0 112px; }
+    .queueStatusSection { margin-top: 12px; }
+    .queueStatusSectionTitle { margin: 16px 0 10px; font-weight: 800; font-size: 16px; color: #0d47a1; }
   </style>
 </head>
 <body>
@@ -163,7 +165,7 @@
       : s === "dibatalkan" ? "queueStatusBatal"
       : "queueStatusPending";
     const label = s === "selesai" ? "Selesai"
-      : s === "revisi" ? "Perlu Revisi"
+      : s === "revisi" ? "Menunggu Revisi"
       : s === "dibatalkan" ? "Dibatalkan"
       : "Menunggu";
     return '<span class="' + cls + '">' + escapeHtml(label) + '</span>';
@@ -221,10 +223,20 @@
       $("queueArea").innerHTML = '<div class="emptyState">Belum ada revisi diajukan.</div>';
       return;
     }
-    const active = queueRows.filter(function(r) { return r.status === "pending" || r.status === "revisi"; });
+    const waiting = queueRows.filter(function(r) { return r.status === "pending"; });
+    const waitingRevision = queueRows.filter(function(r) { return r.status === "revisi"; });
     const done = queueRows.filter(function(r) { return r.status === "selesai" || r.status === "dibatalkan"; });
 
-    let html = active.length ? active.map(cardHtml).join('') : '<div class="emptyState">Tidak ada yang perlu direview.</div>';
+    let html = '<div class="queueStatusSection">'
+      + '<div class="queueStatusSectionTitle">Menunggu (' + waiting.length + ')</div>'
+      + (waiting.length ? waiting.map(cardHtml).join('') : '<div class="emptyState">Tidak ada yang perlu direview.</div>')
+      + '</div>';
+    if (waitingRevision.length) {
+      html += '<div class="queueStatusSection">'
+        + '<div class="queueStatusSectionTitle">Menunggu Revisi (' + waitingRevision.length + ')</div>'
+        + waitingRevision.map(cardHtml).join('')
+        + '</div>';
+    }
 
     if (done.length) {
       html += '<button type="button" class="btnSecondary" style="margin-top:14px;" onclick="toggleDone()">'
