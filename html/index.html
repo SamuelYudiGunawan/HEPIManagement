@@ -2578,7 +2578,28 @@
     }
 
     function parseNarrative(text) {
-      return String(text || "").trim();
+      const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+      const contactLine = /^\s*(?:[-•]\s*)?(?:hub(?:ungi|ngi)?|contact(?:\s+person)?|whats?app|wa\b|hp\b|more\s+info|info\s+lebih\s+lanjut|telp\b|telepon\b|phone\b)\s*[:\-]?/i;
+      const hashtagLine = /^\s*#[^\s#]+/;
+      const phoneLine = /^\s*(?:\+?62|0)\d[\d\s().-]{6,}\d\s*$/;
+      let cutAt = lines.findIndex(function(line) { return contactLine.test(line); });
+
+      if (cutAt < 0) {
+        const hashtagAt = lines.findIndex(function(line) { return hashtagLine.test(line); });
+        const phoneAt = lines.findIndex(function(line) { return phoneLine.test(line); });
+        if (phoneAt >= 0 && hashtagAt > phoneAt) {
+          cutAt = phoneAt;
+          let previous = phoneAt - 1;
+          while (previous >= 0 && !lines[previous].trim()) previous--;
+          if (previous >= 0 && !/^(?:luas\b|lt\b|lb\b|kamar\b|kt\b|km\b|listrik\b|air\b|sertifikat\b|hadap\b|harga\b)/i.test(lines[previous].trim())) {
+            cutAt = previous;
+          }
+        } else if (hashtagAt >= 0) {
+          cutAt = hashtagAt;
+        }
+      }
+
+      return lines.slice(0, cutAt < 0 ? lines.length : cutAt).join("\n").trim();
     }
 
     function copyNarrative(fileId, btnElement) {
