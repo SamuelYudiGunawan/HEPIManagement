@@ -2310,7 +2310,7 @@
             box.style.display = "none";
             return;
           }
-          const narrative = parseNarrative(res.content);
+          const narrative = parseNarrative(res.content, fileId);
           if (!narrative) {
             box.style.display = "none";
             return;
@@ -2577,26 +2577,92 @@
       }
     }
 
-    function parseNarrative(text) {
+    function parseNarrative(text, fileId) {
       const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
       const contactLine = /^\s*(?:[-•]\s*)?(?:hub(?:ungi|ngi)?|contact(?:\s+person)?|whats?app|wa\b|hp\b|more\s+info|info\s+lebih\s+lanjut|telp\b|telepon\b|phone\b)\s*[:\-]?/i;
       const hashtagLine = /^\s*#[^\s#]+/;
       const phoneLine = /^\s*(?:\+?62|0)\d[\d\s().-]{6,}\d\s*$/;
+      const customCtaLine = /^\s*(?:fast\s*respon(?:se)?(?:\s+(?:n|dan|&)\s+survey)?(?:\s+hub)?|survey\s+hub)\s*$/i;
+      const propertyLine = /^(?:luas\b|lt\b|lb\b|kamar\b|kt\b|km\b|listrik\b|air\b|sertifikat\b|hadap\b|harga\b)/i;
       let cutAt = lines.findIndex(function(line) { return contactLine.test(line); });
 
       if (cutAt < 0) {
+        const lastContentAt = lines.reduce(function(found, line, index) {
+          return line.trim() ? index : found;
+        }, -1);
         const hashtagAt = lines.findIndex(function(line) { return hashtagLine.test(line); });
         const phoneAt = lines.findIndex(function(line) { return phoneLine.test(line); });
-        if (phoneAt >= 0 && hashtagAt > phoneAt) {
-          cutAt = phoneAt;
-          let previous = phoneAt - 1;
-          while (previous >= 0 && !lines[previous].trim()) previous--;
-          if (previous >= 0 && !/^(?:luas\b|lt\b|lb\b|kamar\b|kt\b|km\b|listrik\b|air\b|sertifikat\b|hadap\b|harga\b)/i.test(lines[previous].trim())) {
-            cutAt = previous;
+        const listing = (Array.isArray(ALL_DATA) ? ALL_DATA : []).find(function(item) {
+          return String(item && item.fileId || "") === String(fileId || "");
+        });
+        const agentName = String(listing && listing.agen || "").trim().toLowerCase();
+        let agentAt = -1;
+
+        if (agentName) {
+          for (let i = lines.length - 1; i >= 0; i--) {
+            const candidate = lines[i].trim().toLowerCase();
+            if (candidate.indexOf(agentName) !== 0) continue;
+            const suffix = candidate.slice(agentName.length).trim();
+            if (!suffix || /^[(:+\-\d]/.test(suffix)) {
+              agentAt = i;
+              break;
+            }
           }
-        } else if (hashtagAt >= 0) {
-          cutAt = hashtagAt;
         }
+
+        const isNearTail = function(index, maxLines) {
+          return index >= 0 && lastContentAt - index <= maxLines;
+        };
+        const findParagraphStart = function(index, maxLines) {
+          let start = index;
+          for (let i = index - 1; i >= 0 && index - i <= maxLines; i--) {
+            if (!lines[i].trim()) return start;
+            start = i;
+          }
+          return index;
+        };
+
+        // Agent signatures anchor custom footer blocks even when agents use
+        // different wording, for example “Fast Respon n Survey Hub” followed
+        // by “Jimmy San (Number)”.
+        if (isNearTail(agentAt, 8)) {
+          cutAt = agentAt;
+          const ctaAt = lines.findIndex(function(line, index) {
+            return index < agentAt && agentAt - index <= 4 && customCtaLine.test(line);
+          });
+          if (ctaAt >= 0) {
+            cutAt = ctaAt;
+          } else {
+            const paragraphStart = findParagraphStart(agentAt, 5);
+            if (paragraphStart < agentAt) cutAt = paragraphStart;
+          }
+        }
+
+        // A trailing phone number is also a strong footer signal. Remove its
+        // surrounding final paragraph so custom CTA and agent-name lines go
+        // with it. Keep the existing hashtag-only fallback for other formats.
+        if (cutAt < 0 && isNearTail(phoneAt, 8)) {
+          const paragraphStart = findParagraphStart(phoneAt, 6);
+          if (paragraphStart < phoneAt) {
+            cutAt = paragraphStart;
+          } else {
+            cutAt = phoneAt;
+            let previous = phoneAt - 1;
+            while (previous >= 0 && !lines[previous].trim()) previous--;
+            if (previous >= 0 && !propertyLine.test(lines[previous].trim())) cutAt = previous;
+          }
+        }
+
+        // Exact or recognizable CTA lines are safe to remove near the end;
+        // this catches custom slogans even when the agent phone is omitted.
+        if (cutAt < 0) {
+          const ctaAt = lines.findIndex(function(line) {
+            return customCtaLine.test(line);
+          });
+          if (isNearTail(ctaAt, 6)) cutAt = ctaAt;
+        }
+
+        if (cutAt < 0 && hashtagAt >= 0) cutAt = hashtagAt;
       }
 
       return lines.slice(0, cutAt < 0 ? lines.length : cutAt).join("\n").trim();
@@ -2622,7 +2688,7 @@
             return;
           }
 
-          const narrative = parseNarrative(res.content);
+          const narrative = parseNarrative(res.content, fileId);
 
           if (!narrative) {
             showMessage("⚠️ Narasi kosong.");
@@ -2686,7 +2752,7 @@
 
         const narrativePromise = hepiApi("/api/narrative/" + encodeURIComponent(fileId))
           .then(function(res) {
-            if (res && res.success && res.content) return parseNarrative(res.content) || "";
+            if (res && res.success && res.content) return parseNarrative(res.content, fileId) || "";
             return "";
           })
           .catch(function() { return ""; });
