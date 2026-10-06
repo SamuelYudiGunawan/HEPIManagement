@@ -2578,21 +2578,7 @@
     }
 
     function parseNarrative(text) {
-      if (!text) return "";
-      
-      const lines = text.split(/\r?\n/);
-      const result = [];
-      
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        result.push(line);
-        
-        if (/harga/i.test(line)) {
-          break;
-        }
-      }
-      
-      return result.join('\n').trim();
+      return String(text || "").trim();
     }
 
     function copyNarrative(fileId, btnElement) {
@@ -2618,7 +2604,7 @@
           const narrative = parseNarrative(res.content);
 
           if (!narrative) {
-            showMessage("⚠️ Narasi kosong atau tidak ada kata 'harga'.");
+            showMessage("⚠️ Narasi kosong.");
             return;
           }
 
