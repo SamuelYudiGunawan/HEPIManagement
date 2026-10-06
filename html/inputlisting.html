@@ -53,6 +53,11 @@
 
     <div id="formBox" class="filterBox" style="display:none;">
       <div class="filterTitle">Input Listing</div>
+      <div class="specGroup" style="max-width:420px;margin-bottom:20px;">
+        <label class="specLabel" for="listingMonth">Bulan dan tahun folder</label>
+        <input id="listingMonth" type="month" required>
+        <div class="smallHint">Semua listing yang disimpan akan masuk ke folder bulan ini.</div>
+      </div>
       <div id="listingRows"></div>
       <div class="closingActions">
         <button type="button" id="btnAddListing" class="btnSecondary" onclick="addListingCard()">+ Add more listing</button>
@@ -76,6 +81,12 @@
 
   function $(id) { return document.getElementById(id); }
   function safeStr(v) { return String(v == null ? "" : v); }
+
+  function initializeListingMonth() {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    $("listingMonth").value = now.getFullYear() + "-" + month;
+  }
 
   function escapeHtml(str) {
     return safeStr(str)
@@ -772,6 +783,7 @@
       useOwnNarrative: useOwn,
       ownNarrative: ownNarrative,
       autoNarrative: autoNarrative,
+      bulanTahun: $("listingMonth").value,
       thumbBase64: card._thumbDataUrl,
       thumbMime: card._thumbMime || "image/jpeg",
       origBase64: card._origDataUrl,
@@ -817,6 +829,9 @@
     const cards = Array.prototype.slice.call(document.querySelectorAll("#listingRows .listingCard"));
     let payloads;
     try {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test($("listingMonth").value)) {
+        throw new Error("Pilih bulan dan tahun folder.");
+      }
       payloads = cards.map(collectPayload);
     } catch (err) {
       alert(err && err.message ? err.message : String(err));
@@ -827,6 +842,7 @@
     const original = btn.innerHTML;
     btn.disabled = true;
     $("btnAddListing").disabled = true;
+    $("listingMonth").disabled = true;
     $("submitStatus").className = "smallHint";
     $("submitStatus").textContent = "";
 
@@ -838,6 +854,7 @@
         btn.innerHTML = original;
         btn.disabled = false;
         $("btnAddListing").disabled = false;
+        $("listingMonth").disabled = false;
         const names = saved.map(function(s) { return s.folderName; }).join(", ");
         $("submitStatus").className = "successBanner";
         $("submitStatus").textContent = "Listing tersimpan: " + names;
@@ -858,6 +875,7 @@
           btn.innerHTML = original;
           btn.disabled = false;
           $("btnAddListing").disabled = false;
+          $("listingMonth").disabled = false;
           const msg = err && err.message ? err.message : String(err);
           $("submitStatus").className = "smallHint";
           const prefix = saved.length
@@ -872,6 +890,7 @@
     next();
   }
 
+  initializeListingMonth();
   hepiAuth.onReady(applyAccess);
 </script>
 </body>
