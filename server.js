@@ -427,6 +427,14 @@ async function build() {
     return { status };
   });
 
+  app.post("/api/hot", async (req) => {
+    credsOrThrow();
+    const body = req.body || {};
+    const { agentCode } = requireSession(req);
+    const status = await listings.markAsHot(body.fileId, agentCode);
+    return { status };
+  });
+
   app.get("/api/narrative/:id", async (req) => {
     credsOrThrow();
     requireSession(req);

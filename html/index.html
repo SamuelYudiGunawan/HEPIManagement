@@ -71,6 +71,11 @@
     letter-spacing: .4px;
   }
 
+  .hotSticker {
+    top: 42px;
+    background: #dc2626;
+  }
+
   .todayReviewBtn {
     width: auto !important;
     min-height: 42px;
@@ -80,6 +85,9 @@
     white-space: nowrap;
   }
   .todayReviewBtn.active { background: #0d47a1; }
+  .hotFilterBtn { color: #b45309 !important; }
+  .hotFilterBtn.active { background: #b45309; color: #fff !important; }
+  .reviewFilterButtons { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 
   .headerLogout {
     width: auto !important;
@@ -405,6 +413,15 @@
     background: #fff !important;
     border: 1px solid #ececff !important;
   }
+
+  .hotBtn {
+    color: #d97706 !important;
+    background: #fff !important;
+    border: 1px solid #ececff !important;
+  }
+
+  .actionsRowStatus { grid-template-columns: repeat(2, 1fr); }
+  .actionsRowStatus > :only-child { grid-column: 1 / -1; }
 
   .shareBtn {
     color: #5f69ff !important;
@@ -1292,6 +1309,18 @@
     </div>
   </div>
 
+  <!-- HOT MODAL -->
+  <div id="hotModal" class="sold-modal">
+    <div class="sold-box">
+      <h2>🔥 KONFIRMASI HOT</h2>
+      <div id="hotModalText" class="sold-text"></div>
+      <div class="sold-buttons">
+        <button onclick="closeHotModal()" style="background:#9ca3af;">Batal</button>
+        <button id="btnConfirmHot" onclick="confirmHot()" style="background:#d97706;">YA, PROSES</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MESSAGE MODAL -->
   <div id="messageModal" class="sold-modal">
     <div class="sold-box">
@@ -1560,7 +1589,10 @@
           </div>
           <input type="hidden" id="sort" value="terbaru">
         </div>
-        <button id="todayReviewBtn" type="button" class="todayReviewBtn" onclick="showTodayReviews()">Listing &amp; Revisi Hari Ini</button>
+        <div class="reviewFilterButtons">
+          <button id="todayReviewBtn" type="button" class="todayReviewBtn" onclick="showTodayReviews()">Listing &amp; Revisi Hari Ini</button>
+          <button id="hotFilterBtn" type="button" class="todayReviewBtn hotFilterBtn" onclick="showHotListings()">🔥 HOT</button>
+        </div>
       </div>
     </div>
 
@@ -1704,8 +1736,10 @@
     let ALL_DATA = [];
     let TODAY_REVIEW_ITEMS = null;
     let TODAY_REVIEW_MODE_ACTIVE = false;
+    let HOT_FILTER_MODE_ACTIVE = false;
     let soldFileId = "";
     let soldFileName = "";
+    let hotFileId = "";
 
     function $(id) {
       return document.getElementById(id);
@@ -1741,6 +1775,14 @@
 
     function isSold(item) {
       return normalizeText(item.sold) === "ya";
+    }
+
+    function isHot(item) {
+      return normalizeText(item && item.hot) === "ya";
+    }
+
+    function canManageHot() {
+      return ["HPSAM", "HPELS"].includes(safeStr(hepiAuth.getAgentCode()).toUpperCase().trim());
     }
 
     function buildWaLink(kontak, message) {
@@ -1853,6 +1895,68 @@
 
     function closeSoldModal() {
       $("soldModal").style.display = "none";
+    }
+
+    function openHotModal(fileId, fileName, currentlyHot) {
+      hotFileId = fileId;
+      $("hotModalText").innerHTML = currentlyHot
+        ? `Listing <b>${escapeHtml(fileName || "")}</b> saat ini berstatus HOT.<br><br>Yakin mau melepas tanda <b>HOT</b>?`
+        : `Yakin listing <b>${escapeHtml(fileName || "")}</b><br>mau ditandai <b>HOT</b>?`;
+      $("hotModal").style.display = "block";
+    }
+
+    function closeHotModal() {
+      $("hotModal").style.display = "none";
+    }
+
+    function markHot(fileId) {
+      if (document.activeElement) document.activeElement.blur();
+      if (!hepiAuth.isLoggedIn()) {
+        openLoginModal();
+        return;
+      }
+      if (!canManageHot()) {
+        showMessage("Hanya agen HPSAM dan HPELS yang bisa mengelola tanda HOT.");
+        return;
+      }
+
+      const item = ALL_DATA.find(x => safeStr(x.fileId) === safeStr(fileId));
+      openHotModal(fileId, item ? item.fileName : "", item ? isHot(item) : false);
+    }
+
+    function confirmHot() {
+      if (!hotFileId) {
+        closeHotModal();
+        return;
+      }
+      if (!hepiAuth.isLoggedIn()) {
+        closeHotModal();
+        openLoginModal();
+        return;
+      }
+
+      const btn = $("btnConfirmHot");
+      const originalText = btn.innerHTML;
+      btn.innerHTML = "Memproses...";
+      btn.disabled = true;
+
+      hepiApi("/api/hot", { body: { fileId: hotFileId } })
+        .then(function(res) {
+          const status = res && res.status ? res.status : res;
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          closeHotModal();
+          showMessage(status === "UNHOT" ? "✅ Tanda HOT berhasil dilepas." : "✅ Listing berhasil ditandai HOT.");
+          loadData(true, true);
+        })
+        .catch(function(err) {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          closeHotModal();
+          const msg = err && err.message ? err.message : String(err);
+          if (/login/i.test(msg)) openLoginModal();
+          else showMessage("⚠️ " + escapeHtml(msg));
+        });
     }
 
     function showMessage(msg) {
@@ -1969,6 +2073,10 @@
     }
 
     function runSearch() {
+      HOT_FILTER_MODE_ACTIVE = false;
+      TODAY_REVIEW_MODE_ACTIVE = false;
+      $("hotFilterBtn").classList.remove("active");
+      $("todayReviewBtn").classList.remove("active");
       const btn = $("btnCari");
       const originalText = btn.innerHTML;
 
@@ -2004,16 +2112,24 @@
     }
 
     function resetFilter() {
+      const wasQuickReviewModeActive = HOT_FILTER_MODE_ACTIVE || TODAY_REVIEW_MODE_ACTIVE;
       TODAY_REVIEW_MODE_ACTIVE = false;
+      HOT_FILTER_MODE_ACTIVE = false;
       $("todayReviewBtn").classList.remove("active");
+      $("hotFilterBtn").classList.remove("active");
       ["keyword", "hargaMin", "hargaMax", "ltMin", "ltMax", "lbMin", "lbMax", "ktMin", "ktMax", "kmMin", "kmMax", "periodeStartTahun", "periodeEndTahun"].forEach(id => {
         $(id).value = "";
       });
 
       resetCustomDropdowns(["kategori", "tipe", "hadap", "furnished", "sort", "periodeStartBulan", "periodeEndBulan"]);
 
-      $("stats").innerHTML = "👆 Isi filternya dulu, terus klik tombol <b>CARIIN LISTING</b>.";
-      $("results").innerHTML = "";
+      if (wasQuickReviewModeActive) {
+        if (ALL_DATA.length) render();
+        else loadData(true, true);
+      } else {
+        $("stats").innerHTML = "👆 Isi filternya dulu, terus klik tombol <b>CARIIN LISTING</b>.";
+        $("results").innerHTML = "";
+      }
     }
 
     /* ========================
@@ -2122,6 +2238,8 @@
     }
 
     function showTodayReviews() {
+      HOT_FILTER_MODE_ACTIVE = false;
+      $("hotFilterBtn").classList.remove("active");
       TODAY_REVIEW_MODE_ACTIVE = true;
       $("todayReviewBtn").classList.add("active");
       $("stats").innerHTML = "⏳ Memuat listing & revisi hari ini...";
@@ -2129,8 +2247,18 @@
       loadTodayReviewItems();
     }
 
+    function showHotListings() {
+      HOT_FILTER_MODE_ACTIVE = true;
+      TODAY_REVIEW_MODE_ACTIVE = false;
+      $("todayReviewBtn").classList.remove("active");
+      $("hotFilterBtn").classList.add("active");
+      if (ALL_DATA.length) render();
+      else loadData(true, true);
+    }
+
     function buildCardHtml(x) {
       const sold = isSold(x);
+      const hot = isHot(x);
       const katNorm = normalizeText(x.kategori);
       const isSewa = katNorm === "sewa";
       const wa = x.kontak ? getWhatsappLink(x.kontak, x.fileId) : "#";
@@ -2155,6 +2283,7 @@
     <div class="cardMain">
       <div class="thumbWrap">
         ${x._isReviewRevision ? `<div class="reviewRevisionSticker">REVISI BARU</div>` : ""}
+        ${hot ? `<div class="reviewRevisionSticker hotSticker">HOT</div>` : ""}
         ${x.thumbnail ? `
           <a href="https://drive.google.com/file/d/${escapeHtml(x.thumbnail)}/view" target="_blank">
           <img class="thumb"
@@ -2224,7 +2353,7 @@
         ` : ""}
       </div>
 
-      <div class="actionsRow actionsRow4">
+      <div class="actionsRow actionsRow3">
         <a
           class="waBtn ${waDisabled ? "disabledBtn" : ""}"
           target="_blank"
@@ -2243,12 +2372,22 @@
           href="${escapeHtml(x.folderLink || "#")}"
         >📂 FOLDER</a>
 
+      </div>
+
+      <div class="actionsRow actionsRowStatus">
         <button
           class="${soldBtnClass}"
           ${soldBtnDisabledAttr}
           onclick="markSold(this.dataset.fid)"
           data-fid="${escapeHtml(x.fileId)}"
         >⛔ ${soldLabel}</button>
+        ${canManageHot() ? `
+        <button
+          class="hotBtn"
+          onclick="markHot(this.dataset.fid)"
+          data-fid="${escapeHtml(x.fileId)}"
+        >🔥 ${hot ? "UNHOT" : "HOT"}</button>
+        ` : ""}
       </div>
 
       ${hepiAuth.getStatus() === "adminkantor" ? `
@@ -2411,6 +2550,7 @@
         });
 
         const isTodayReviewMode = TODAY_REVIEW_MODE_ACTIVE;
+        const isHotFilterMode = HOT_FILTER_MODE_ACTIVE;
         let data;
 
         if (isTodayReviewMode) {
@@ -2433,6 +2573,7 @@
         } else {
           data = ALL_DATA.filter(x => {
           if (!x) return false;
+          if (isHotFilterMode && !isHot(x)) return false;
 
           const areaT = normalizeText(x.area);
           const agenT = normalizeText(x.agen);
@@ -2547,7 +2688,11 @@
           });
         }
 
-        if (!isTodayReviewMode) $("stats").innerHTML = `Iyes! ${data.length} listing ditemukan.`;
+        if (!isTodayReviewMode) {
+          $("stats").innerHTML = isHotFilterMode
+            ? `🔥 ${data.length} listing HOT ditemukan.`
+            : `Iyes! ${data.length} listing ditemukan.`;
+        }
 
         if (!data.length) {
           $("results").innerHTML = `
@@ -3052,6 +3197,7 @@
         if (hepiAuth.isLoggedIn()) {
           loadTodayReviewItems();
         }
+        if (ALL_DATA.length) render();
       });
     };
   </script>
