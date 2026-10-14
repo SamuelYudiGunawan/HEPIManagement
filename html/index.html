@@ -1767,6 +1767,21 @@
       return safeStr(s).toLowerCase().trim();
     }
 
+    function formatHotTimestamp(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23"
+      }).format(date) + " WIB";
+    }
+
     function parseHargaJuta(inputElId, fallback) {
       const raw = safeStr($(inputElId).value).replace(/\./g, "").replace(/,/g, "").trim();
       if (!raw) return fallback;
@@ -2321,7 +2336,8 @@
           Hadap: ${escapeHtml(x.hadap || "-")} <br>
           Furnished: ${escapeHtml(x.furnished || "-")} <br>
           Agen: ${escapeHtml(x.agen || "-")} <br>
-          <span class="muted">Listing: ${escapeHtml(x.bulanTahun || "-")}</span>
+          <span class="muted">Iklan dibuat: ${escapeHtml(x.bulanTahun || "-")}</span>
+          ${hot && x.hotMarkedAt ? `<br><span class="muted">HOT sejak: ${escapeHtml(formatHotTimestamp(x.hotMarkedAt))}</span>` : ""}
         </div>
       </div>
     </div>
