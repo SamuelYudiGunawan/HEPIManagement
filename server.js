@@ -651,12 +651,32 @@ async function build() {
     const { agentCode } = requireSession(req);
     const agent = await agents.requireAgent(agentCode);
     if (!agents.isListingEditor(agent)) throw new Error("Hanya admin atau adminkantor yang bisa akses.");
+    const zeroPriceJob = importer.getImportStatus().zeroPriceReparse;
+    if (zeroPriceJob && zeroPriceJob.running) {
+      const error = new Error("Reparse harga 0 sedang berjalan.");
+      error.statusCode = 409;
+      throw error;
+    }
     // Start the same full importer used for a parser migration, but return
     // immediately so the browser can keep showing the queue in the monitor.
     importer.runImport(true, req.log).catch((error) => {
       req.log.error({ err: error.message || String(error) }, "reparse-all failed");
     });
     return { ok: true, started: true };
+  });
+
+  app.post("/api/listings/reparse-zero-prices", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    const agent = await agents.requireAgent(agentCode);
+    if (!agents.isListingEditor(agent)) throw new Error("Hanya admin atau adminkantor yang bisa akses.");
+    const result = importer.startZeroPriceReparse(agentCode, req.log);
+    if (!result.started) {
+      const error = new Error(result.reason || "Reparse tidak dapat dimulai.");
+      error.statusCode = 409;
+      throw error;
+    }
+    return result;
   });
 
   app.get("/api/import/status", async (req) => {
