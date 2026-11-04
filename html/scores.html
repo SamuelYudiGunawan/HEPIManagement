@@ -133,13 +133,14 @@
     const maxKonten = Math.max.apply(null, agents.map(function(a) { return Number(a.konten) || 0; }));
     const maxPosting = Math.max.apply(null, agents.map(function(a) { return Number(a.posting) || 0; }));
     const maxSurvey = Math.max.apply(null, agents.map(function(a) { return Number(a.survey) || 0; }));
+    const maxMeeting = Math.max.apply(null, agents.map(function(a) { return Number(a.absen) || 0; }));
 
     function maxClass(value, top) {
       return (top > 0 && Number(value) === top) ? ' class="scoreMax"' : "";
     }
 
     let table = '<table class="scoreTable"><thead><tr>'
-      + '<th>#</th><th>Nama</th><th>Listing</th><th>Konten</th><th>Posting</th><th>Survey</th><th>Closing</th><th>Skor</th><th>Status</th><th>Kekurangan</th>'
+      + '<th>#</th><th>Nama</th><th>Listing</th><th>Konten</th><th>Posting</th><th>Survey</th><th>Closing</th><th>Meeting</th><th>Skor</th><th>Status</th><th>Kekurangan</th>'
       + '</tr></thead><tbody>';
     agents.forEach(function(a, i) {
       const p = a.progress || {};
@@ -159,7 +160,8 @@
         + '<td' + maxClass(a.posting, maxPosting) + '>' + escapeHtml(a.posting) + '</td>'
         + '<td' + maxClass(a.survey, maxSurvey) + '>' + escapeHtml(a.survey) + '</td>'
         + '<td>' + escapeHtml(a.closing) + '</td>'
-        + '<td><b>' + escapeHtml(a.skor) + '</b><br><small class="scoreAttendanceMeta">Absen: ' + escapeHtml(a.absen || 0) + ' × 100 poin</small></td>'
+        + '<td' + maxClass(a.absen, maxMeeting) + '>' + escapeHtml(a.absen || 0) + '</td>'
+        + '<td><b>' + escapeHtml(a.skor) + '</b></td>'
         + '<td class="' + (passed ? "statusPass" : "statusFail") + '">' + (passed ? "OK" : "NOT OK") + '</td>'
         + '<td>' + escapeHtml(kurang) + '</td>'
         + '</tr>';
@@ -172,7 +174,8 @@
       + '<td><b>' + escapeHtml(totals.posting || 0) + '</b></td>'
       + '<td><b>' + escapeHtml(totals.survey || 0) + '</b></td>'
       + '<td><b>' + escapeHtml(totals.closing || 0) + '</b></td>'
-      + '<td><b>' + escapeHtml(totals.skor || 0) + '</b><br><small class="scoreAttendanceMeta">Absen: ' + escapeHtml(totals.absen || 0) + '</small></td>'
+      + '<td><b>' + escapeHtml(totals.absen || 0) + '</b></td>'
+      + '<td><b>' + escapeHtml(totals.skor || 0) + '</b></td>'
       + '<td></td><td></td></tr>';
     table += '</tbody></table>';
     $("tableArea").innerHTML = table;
