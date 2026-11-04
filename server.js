@@ -16,6 +16,7 @@ const drive = require("./lib/drive");
 const agents = require("./lib/agents");
 const listings = require("./lib/listings");
 const activity = require("./lib/activity");
+const attendance = require("./lib/attendance");
 const activityReminder = require("./lib/activityReminder");
 const importer = require("./lib/import");
 const formListing = require("./lib/formListing");
@@ -34,6 +35,7 @@ const PAGE_FILES = {
   "/": "index.html",
   "/activity": "activity.html",
   "/scores": "scores.html",
+  "/absen": "attendance.html",
   "/history": "history.html",
   "/closing": "closing.html",
   "/inputlisting": "inputlisting.html",
@@ -411,6 +413,18 @@ async function build() {
       status: s.status,
       email: s.email
     };
+  });
+
+  app.get("/api/attendance/status", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    return attendance.getStatus(agentCode, req.ip);
+  });
+
+  app.post("/api/attendance/submit", async (req) => {
+    credsOrThrow();
+    const { agentCode } = requireSession(req);
+    return attendance.submit(agentCode, req.ip, req.body || {});
   });
 
   app.get("/api/listings", async (req) => {

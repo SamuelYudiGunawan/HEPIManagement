@@ -6,6 +6,8 @@
   var readyCallbacks = [];
   var sessionCheckFailed = false;
   var loginRedirectStarted = false;
+  var attendanceNavVisible = false;
+  var attendanceNavCheckStarted = false;
 
   function currentReturnTo() {
     return window.location.pathname + window.location.search + window.location.hash;
@@ -42,7 +44,25 @@
     return status === "admin" || status === "adminkantor";
   }
 
-  function renderNavbar() {
+  function isMeetingWindowOnDevice() {
+    try {
+      var parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Jakarta",
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23"
+      }).formatToParts(new Date());
+      var values = {};
+      parts.forEach(function (part) { values[part.type] = part.value; });
+      var minuteOfDay = Number(values.hour) * 60 + Number(values.minute);
+      return values.weekday === "Wed" && minuteOfDay >= 1080 && minuteOfDay <= 1350;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function renderNavbarLinks() {
     var nav = document.querySelector(".appNav");
     if (!nav) return;
 
@@ -52,6 +72,7 @@
       ["/", "Cari Listing", false],
       ["/activity", "Aktivitas", false],
       ["/scores", "Skor", false],
+      ["/absen", "Absen", false, attendanceNavVisible],
       ["/history", "History", false],
       ["/closing", "Closing", true],
       ["/inputlisting", "Input Listing", true],
@@ -63,12 +84,58 @@
     ];
 
     nav.innerHTML = links
-      .filter(function (link) { return !link[2] || admin; })
+      .filter(function (link) { return (!link[2] || admin) && (link[3] !== false); })
       .map(function (link) {
         var active = current === link[0] ? " active" : "";
         return '<a class="appNavLink' + active + '" href="' + link[0] + '" target="_top">' + link[1] + '</a>';
       })
       .join("");
+  }
+
+  function maybeShowAttendanceNav() {
+    if (!session.loggedIn || attendanceNavCheckStarted || typeof window.hepiApi !== "function") return;
+    attendanceNavCheckStarted = true;
+    if (!isMeetingWindowOnDevice()) return;
+    window.hepiApi("/api/attendance/status").then(function (status) {
+      if (!status || !status.eligible || !navigator.geolocation) return false;
+      return new Promise(function (resolve) {
+        navigator.geolocation.getCurrentPosition(function (position) {
+          var office = status.office || {};
+          var latitude = Number(position.coords.latitude);
+          var longitude = Number(position.coords.longitude);
+          var officeLatitude = Number(office.latitude);
+          var officeLongitude = Number(office.longitude);
+          if (![latitude, longitude, officeLatitude, officeLongitude].every(Number.isFinite)) {
+            resolve(false);
+            return;
+          }
+          var radians = function (degrees) { return degrees * Math.PI / 180; };
+          var dLat = radians(officeLatitude - latitude);
+          var dLon = radians(officeLongitude - longitude);
+          var h = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+            + Math.cos(radians(latitude)) * Math.cos(radians(officeLatitude))
+            * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          var distance = 2 * 6371000 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+          resolve(distance <= Number(office.radiusMeters));
+        }, function () { resolve(false); }, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 12000
+        });
+      });
+    }).catch(function () {
+      return false;
+    }).then(function (visible) {
+      attendanceNavVisible = !!visible;
+      renderNavbarLinks();
+    });
+  }
+
+  function renderNavbar() {
+    renderNavbarLinks();
+    maybeShowAttendanceNav();
+    var nav = document.querySelector(".appNav");
+    if (!nav) return;
     renderNotificationCenter();
   }
 

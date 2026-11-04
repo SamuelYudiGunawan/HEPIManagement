@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="theme-color" content="#0d47a1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/icons/icon-192.png">
+  <title>Absensi Meeting</title>
+  <link rel="stylesheet" href="/styles-v2.css">
+  <script src="/js/hepi-api.js"></script>
+  <script src="/js/hepi-auth.js"></script>
+  <script src="/js/push-client.js"></script>
+  <script src="/js/textsize.js"></script>
+</head>
+<body>
+  <div class="siteNav">
+    <nav class="appNav">
+      <a class="appNavLink" href="/" target="_top">Cari Listing</a>
+      <a class="appNavLink" href="/activity" target="_top">Aktivitas</a>
+      <a class="appNavLink" href="/scores" target="_top">Skor</a>
+      <a class="appNavLink" href="/history" target="_top">History</a>
+    </nav>
+    <button class="headerLogout" onclick="hepiAuth.logout()">Logout</button>
+  </div>
+  <div class="textSizeBar" role="group" aria-label="Ukuran teks">
+    <span class="textSizeLabel">Ukuran Font</span>
+    <button type="button" class="textSizeBtn" data-text-size-btn="normal">N</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="large">L</button>
+    <button type="button" class="textSizeBtn" data-text-size-btn="xlarge">XL</button>
+  </div>
+
+  <div class="pageWrap">
+    <section class="filterBox attendanceBox">
+      <div class="filterTitle">Absensi Meeting Mingguan</div>
+      <div class="attendanceRule">Rabu, pukul 18.00–22.30 WIB · di kantor, radius 30 meter · 100 poin</div>
+      <div id="attendanceStatus" class="attendanceStatus" role="status" aria-live="polite">Memeriksa waktu, Wi-Fi, dan lokasi...</div>
+      <div id="attendanceDetails" class="smallHint"></div>
+      <button id="attendanceButton" type="button" onclick="submitAttendance()" disabled>ABSEN SEKARANG</button>
+    </section>
+  </div>
+
+<script>
+  let attendanceState = null;
+
+  function $(id) { return document.getElementById(id); }
+
+  function setAttendanceMessage(message, kind) {
+    const target = $("attendanceStatus");
+    target.textContent = message;
+    target.className = "attendanceStatus" + (kind ? " " + kind : "");
+  }
+
+  function currentPosition() {
+    return new Promise(function(resolve, reject) {
+      if (!navigator.geolocation) {
+        reject(new Error("Browser ini tidak mendukung akses lokasi."));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, function(error) {
+        const messages = {
+          1: "Izin lokasi belum diberikan. Aktifkan izin lokasi untuk website ini.",
+          2: "Lokasi perangkat belum berhasil dibaca. Coba lagi di luar ruangan.",
+          3: "Pemeriksaan lokasi terlalu lama. Coba lagi."
+        };
+        reject(new Error(messages[error && error.code] || "Lokasi perangkat belum berhasil dibaca."));
+      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    });
+  }
+
+  function distanceMeters(a, b) {
+    const radians = function(degrees) { return degrees * Math.PI / 180; };
+    const dLat = radians(b.latitude - a.latitude);
+    const dLon = radians(b.longitude - a.longitude);
+    const x = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+      + Math.cos(radians(a.latitude)) * Math.cos(radians(b.latitude))
+      * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * 6371000 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+
+  function setButton(enabled) {
+    $("attendanceButton").disabled = !enabled;
+    $("attendanceButton").style.display = enabled ? "inline-block" : "none";
+  }
+
+  function showStatus(result) {
+    attendanceState = result;
+    setButton(false);
+    $("attendanceDetails").textContent = "Tanggal meeting: " + result.date + " · " + result.points + " poin";
+
+    if (!result.timeAllowed) {
+      setAttendanceMessage("Absensi hanya tersedia setiap hari Rabu pukul 18.00–22.30 WIB.", "attendanceBlocked");
+      return Promise.resolve();
+    }
+    if (!result.officeWifiAllowed) {
+      setAttendanceMessage("Hubungkan perangkat ke Wi-Fi kantor untuk membuka absensi.", "attendanceBlocked");
+      return Promise.resolve();
+    }
+    if (result.alreadyMarked) {
+      setAttendanceMessage("Absensi meeting hari ini sudah tercatat. Poin tidak akan ditambahkan lagi.", "attendanceSuccess");
+      return Promise.resolve();
+    }
+
+    setAttendanceMessage("Memeriksa lokasi perangkat...", "");
+    return currentPosition().then(function(position) {
+      const office = result.office;
+      const distance = distanceMeters(
+        { latitude: position.coords.latitude, longitude: position.coords.longitude },
+        { latitude: office.latitude, longitude: office.longitude }
+      );
+      if (distance > office.radiusMeters) {
+        setAttendanceMessage("Lokasi terdeteksi di luar radius kantor " + office.radiusMeters + " meter.", "attendanceBlocked");
+        return;
+      }
+      setAttendanceMessage("Lokasi dan Wi-Fi kantor terverifikasi. Absensi menambahkan 100 poin.", "attendanceReady");
+      setButton(true);
+    }).catch(function(error) {
+      setAttendanceMessage(error.message || "Lokasi perangkat belum berhasil dibaca.", "attendanceBlocked");
+    });
+  }
+
+  function loadAttendanceStatus() {
+    setButton(false);
+    hepiApi("/api/attendance/status")
+      .then(showStatus)
+      .catch(function(error) {
+        setAttendanceMessage(error.message || "Status absensi gagal dimuat.", "attendanceBlocked");
+      });
+  }
+
+  function submitAttendance() {
+    if (!attendanceState || !attendanceState.eligible || attendanceState.alreadyMarked) return;
+    setButton(false);
+    setAttendanceMessage("Memeriksa lokasi dan menyimpan absensi...", "");
+    currentPosition().then(function(position) {
+      return hepiApi("/api/attendance/submit", {
+        body: {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        }
+      });
+    }).then(function(result) {
+      attendanceState.alreadyMarked = true;
+      setAttendanceMessage("Absensi berhasil tercatat. +" + result.points + " poin untuk " + result.date + ".", "attendanceSuccess");
+      $("attendanceDetails").textContent = "Jarak dari kantor: " + result.distanceMeters + " meter.";
+    }).catch(function(error) {
+      setAttendanceMessage(error.message || "Absensi belum berhasil disimpan.", "attendanceBlocked");
+      if (error && error.status === 409) attendanceState.alreadyMarked = true;
+    });
+  }
+
+  hepiAuth.onReady(function(session) {
+    if (session && session.loggedIn) loadAttendanceStatus();
+  });
+</script>
+</body>
+</html>

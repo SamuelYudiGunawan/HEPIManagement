@@ -159,7 +159,7 @@
         + '<td' + maxClass(a.posting, maxPosting) + '>' + escapeHtml(a.posting) + '</td>'
         + '<td' + maxClass(a.survey, maxSurvey) + '>' + escapeHtml(a.survey) + '</td>'
         + '<td>' + escapeHtml(a.closing) + '</td>'
-        + '<td><b>' + escapeHtml(a.skor) + '</b></td>'
+        + '<td><b>' + escapeHtml(a.skor) + '</b><br><small class="scoreAttendanceMeta">Absen: ' + escapeHtml(a.absen || 0) + ' × 100 poin</small></td>'
         + '<td class="' + (passed ? "statusPass" : "statusFail") + '">' + (passed ? "OK" : "NOT OK") + '</td>'
         + '<td>' + escapeHtml(kurang) + '</td>'
         + '</tr>';
@@ -172,7 +172,7 @@
       + '<td><b>' + escapeHtml(totals.posting || 0) + '</b></td>'
       + '<td><b>' + escapeHtml(totals.survey || 0) + '</b></td>'
       + '<td><b>' + escapeHtml(totals.closing || 0) + '</b></td>'
-      + '<td><b>' + escapeHtml(totals.skor || 0) + '</b></td>'
+      + '<td><b>' + escapeHtml(totals.skor || 0) + '</b><br><small class="scoreAttendanceMeta">Absen: ' + escapeHtml(totals.absen || 0) + '</small></td>'
       + '<td></td><td></td></tr>';
     table += '</tbody></table>';
     $("tableArea").innerHTML = table;
