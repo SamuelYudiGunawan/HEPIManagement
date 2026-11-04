@@ -36,7 +36,6 @@
   <div class="pageWrap">
     <section class="filterBox attendanceBox">
       <div class="filterTitle">Absensi Meeting Mingguan</div>
-      <div class="attendanceRule">Rabu, pukul 18.00–22.30 WIB · di kantor, radius 30 meter · 100 poin</div>
       <div id="attendanceStatus" class="attendanceStatus" role="status" aria-live="polite">Memeriksa waktu, Wi-Fi, dan lokasi...</div>
       <div id="attendanceDetails" class="smallHint"></div>
       <button id="attendanceButton" type="button" onclick="submitAttendance()" disabled>ABSEN SEKARANG</button>
@@ -52,6 +51,7 @@
     const target = $("attendanceStatus");
     target.textContent = message;
     target.className = "attendanceStatus" + (kind ? " " + kind : "");
+    target.hidden = !message;
   }
 
   function currentPosition() {
@@ -89,7 +89,7 @@
   function showStatus(result) {
     attendanceState = result;
     setButton(false);
-    $("attendanceDetails").textContent = "Tanggal meeting: " + result.date + " · " + result.points + " poin";
+    $("attendanceDetails").textContent = "Tanggal meeting: " + result.date;
 
     if (!result.timeAllowed) {
       setAttendanceMessage("Absensi hanya tersedia setiap hari Rabu pukul 18.00–22.30 WIB.", "attendanceBlocked");
@@ -115,7 +115,7 @@
         setAttendanceMessage("Lokasi terdeteksi di luar radius kantor " + office.radiusMeters + " meter.", "attendanceBlocked");
         return;
       }
-      setAttendanceMessage("Lokasi dan Wi-Fi kantor terverifikasi. Absensi menambahkan 100 poin.", "attendanceReady");
+      setAttendanceMessage("", "");
       setButton(true);
     }).catch(function(error) {
       setAttendanceMessage(error.message || "Lokasi perangkat belum berhasil dibaca.", "attendanceBlocked");
@@ -145,7 +145,7 @@
       });
     }).then(function(result) {
       attendanceState.alreadyMarked = true;
-      setAttendanceMessage("Absensi berhasil tercatat. +" + result.points + " poin untuk " + result.date + ".", "attendanceSuccess");
+      setAttendanceMessage("Absensi berhasil tercatat untuk " + result.date + ".", "attendanceSuccess");
       $("attendanceDetails").textContent = "Jarak dari kantor: " + result.distanceMeters + " meter.";
     }).catch(function(error) {
       setAttendanceMessage(error.message || "Absensi belum berhasil disimpan.", "attendanceBlocked");

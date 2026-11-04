@@ -569,7 +569,6 @@
   .scoreAttendanceMeta { color: #536b80; font-size: 0.72em; font-weight: 600; white-space: nowrap; }
 
   .attendanceBox { max-width: 680px; width: 100%; margin: 0 auto; box-sizing: border-box; text-align: center; }
-  .attendanceRule { color: #536b80; font-size: 16px; font-weight: 700; margin: 8px 0 20px; }
   .attendanceStatus { min-height: 28px; margin: 16px 0; color: #37474f; font-size: 18px; font-weight: 700; line-height: 1.45; }
   .attendanceBlocked { color: #b71c1c; }
   .attendanceReady { color: #1b5e20; }
@@ -738,7 +737,6 @@
     .scoreRow { gap: 8px; }
     .scoreName, .scoreValue { font-size: 12px; }
     .scoreAttendanceMeta { font-size: 7px; }
-    .attendanceRule { font-size: 14px; margin: 6px 0 12px; }
     .attendanceStatus { font-size: 15px; margin: 12px 0; }
     .scoreTrack { height: 12px; }
     .monthTitle { font-size: 16px; }
