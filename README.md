@@ -13,7 +13,7 @@ Keep the GAS web app running until this site is verified, then point agents to t
    - `GOOGLE_DRIVE_ROOT_FOLDER_ID` — already set to the current HEPI root folder
    - `GOOGLE_SERVICE_ACCOUNT_JSON` — paste the full JSON key, or set `GOOGLE_APPLICATION_CREDENTIALS` to a file path
    - `CRON_SECRET` — random string for the import cron URL
-   - Meeting attendance defaults to Wednesday 18:00–22:30 WIB, within 30 m of the office pin, and the office public IP `182.253.58.67`. Set `ATTENDANCE_OFFICE_IPS` when the ISP assigns a different public IP. Set `ATTENDANCE_REQUIRE_OFFICE_IP=false` only if you need to disable the Wi-Fi IP check; the meeting time and location checks remain active.
+   - Meeting attendance defaults to Wednesday 18:00–22:30 WIB, within 50 m of the office pin, and the office public IP `182.253.58.67`. Set `ATTENDANCE_OFFICE_IPS` when the ISP assigns a different public IP. Set `ATTENDANCE_REQUIRE_OFFICE_IP=false` only if you need to disable the Wi-Fi IP check; the meeting time and location checks remain active.
 2. In [Google Cloud Console](https://console.cloud.google.com/) create a project, enable **Google Sheets API** and **Google Drive API**, create a **service account**, download the JSON key.
 3. Share the spreadsheet and the Drive root folder with the service account email (Editor).
 4. Install and run:

@@ -153,9 +153,12 @@
     var wrap = document.createElement("div");
     wrap.id = "notificationCenter";
     wrap.className = "notificationCenter";
-    wrap.innerHTML = '<button type="button" class="notificationBell" aria-label="Notifikasi" title="Notifikasi">🔔<span class="notificationBadge" style="display:none"></span></button>'
+    wrap.innerHTML = '<div class="notificationQuickActions"><button type="button" class="locationPermissionBtn" aria-label="Izinkan lokasi untuk absensi" title="Izinkan lokasi untuk absensi">📍</button><button type="button" class="notificationBell" aria-label="Notifikasi" title="Notifikasi">🔔<span class="notificationBadge" style="display:none"></span></button></div><div class="locationPermissionStatus" role="status" aria-live="polite"></div>'
       + '<div class="notificationPanel" style="display:none"><div class="notificationPanelHead"><b>Notifikasi</b><span><button type="button" class="notificationEnable" title="Daftar ulang push notification">Aktifkan ulang</button> <button type="button" class="notificationClearAll">Hapus semua</button></span></div><div class="notificationPushStatus"><span class="notificationPushSummary">Memeriksa status push...</span><button type="button" class="notificationPushRefresh">Refresh</button><button type="button" class="notificationPushTest">Test</button></div><div class="notificationItems"></div></div>';
     logout.parentNode.insertBefore(wrap, logout);
+    wrap.querySelector(".locationPermissionBtn").addEventListener("click", function () {
+      requestAttendanceLocation(wrap);
+    });
     wrap.querySelector(".notificationBell").addEventListener("click", function (event) {
       event.stopPropagation();
       var panel = wrap.querySelector(".notificationPanel");
@@ -193,6 +196,41 @@
       if (!wrap.contains(event.target)) wrap.querySelector(".notificationPanel").style.display = "none";
     });
     loadNotifications();
+  }
+
+  function requestAttendanceLocation(wrap) {
+    var button = wrap.querySelector(".locationPermissionBtn");
+    var status = wrap.querySelector(".locationPermissionStatus");
+    if (!navigator.geolocation) {
+      status.textContent = "Browser ini tidak mendukung akses lokasi.";
+      return;
+    }
+
+    button.disabled = true;
+    status.textContent = "Meminta izin lokasi...";
+    navigator.geolocation.getCurrentPosition(function () {
+      button.disabled = false;
+      button.setAttribute("aria-label", "Izin lokasi sudah aktif");
+      button.title = "Izin lokasi sudah aktif";
+      status.textContent = "Izin lokasi aktif.";
+      attendanceNavVisible = false;
+      attendanceNavCheckStarted = false;
+      renderNavbarLinks();
+      maybeShowAttendanceNav();
+    }, function (error) {
+      button.disabled = false;
+      if (error && error.code === 1) {
+        status.textContent = "Izin ditolak. Aktifkan lokasi di pengaturan browser.";
+      } else if (error && error.code === 3) {
+        status.textContent = "Pemeriksaan lokasi terlalu lama. Coba tekan lagi.";
+      } else {
+        status.textContent = "Lokasi belum bisa dibaca. Pastikan GPS perangkat aktif.";
+      }
+    }, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 15000
+    });
   }
 
   function loadPushStatus() {

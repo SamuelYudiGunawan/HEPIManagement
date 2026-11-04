@@ -145,8 +145,12 @@
   }
   .headerLogout:hover { background: transparent !important; opacity: .7; }
 
-  .notificationCenter { position: relative; margin-left: auto; }
+  .notificationCenter { position: relative; margin-left: auto; display: flex; align-items: center; gap: 2px; }
+  .notificationQuickActions { display: flex; align-items: center; gap: 2px; }
+  .locationPermissionBtn { position: relative; width: auto !important; min-height: auto !important; padding: 4px 8px !important; font-size: 20px !important; background: transparent !important; box-shadow: none !important; }
   .notificationBell { position: relative; width: auto !important; min-height: auto !important; padding: 4px 8px !important; font-size: 20px !important; background: transparent !important; box-shadow: none !important; }
+  .locationPermissionStatus { position: absolute; z-index: 1001; top: 38px; right: 0; width: max-content; max-width: min(280px, calc(100vw - 24px)); padding: 8px 10px; border-radius: 8px; background: #fff; color: #334e68; box-shadow: 0 4px 14px rgba(0,0,0,.16); font-size: 12px; }
+  .locationPermissionStatus:empty { display: none; }
   .notificationBadge { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; align-items: center; justify-content: center; border-radius: 999px; background: #c62828; color: #fff; font-size: 10px; font-weight: 900; }
   .notificationPanel { position: absolute; z-index: 1000; top: 38px; right: 0; width: min(360px, calc(100vw - 20px)); max-height: 420px; overflow-y: auto; background: #fff; border: 1px solid #dbe3ec; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
   .notificationPanelHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #e8edf3; color: #183b59; }
@@ -741,6 +745,7 @@
     .monthNavBtn { width: 44px !important; min-height: 44px !important; font-size: 22px !important; border-radius: 12px !important; }
     .headerLogout { font-size: 14px !important; padding: 6px 10px !important; }
     .notificationPanel { position: fixed; top: 56px; right: 10px; }
+    .locationPermissionStatus { position: fixed; top: 56px; right: 10px; }
     .siteNav { gap: 10px 14px; }
     .appNavLink { font-size: 14px; min-height: 36px; padding: 4px 0; }
     .textSizeBar { padding: 8px 10px; gap: 6px; }
