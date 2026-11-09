@@ -2894,8 +2894,8 @@
       try {
         const shareUrl = getShareUrl(fileId);
 
-        // Fetch the full-resolution property photo (not the card thumbnail)
-        // and the narrative text in parallel. This also matters for iOS:
+        // Fetch the designed 4:5 photo referenced by the sheet's thumbnail
+        // column and the narrative text in parallel. This also matters for iOS:
         // Safari only allows navigator.share() while the tap's "user
         // activation" is still active, and a slow rendering step (this used
         // to be an html2canvas screenshot of the whole card) can eat that
@@ -2904,8 +2904,10 @@
         const imagePromise = fetch("/api/listing-share-image/" + encodeURIComponent(fileId), {
           credentials: "same-origin"
         })
-          .then(function(res) { return res.ok ? res.blob() : null; })
-          .catch(function() { return null; });
+          .then(function(res) {
+            if (!res.ok) throw new Error("Foto thumbnail tidak tersedia atau bukan rasio 4:5.");
+            return res.blob();
+          });
 
         const narrativePromise = hepiApi("/api/narrative/" + encodeURIComponent(fileId))
           .then(function(res) {
