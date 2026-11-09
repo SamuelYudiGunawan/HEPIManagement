@@ -430,6 +430,7 @@ async function build() {
   app.get("/api/listings", async (req) => {
     credsOrThrow();
     requireSession(req);
+    await revision.backfillCompletedLastUpdated();
     return listings.getListings();
   });
 
@@ -481,6 +482,20 @@ async function build() {
     reply.header("Content-Type", resp.headers.get("content-type") || "image/jpeg");
     reply.header("Cache-Control", "public, max-age=3600");
     return reply.send(Buffer.from(buf));
+  });
+
+  app.get("/api/listing-share-image/:id", async (req, reply) => {
+    credsOrThrow();
+    requireSession(req);
+    const id = req.params.id;
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) return reply.code(400).send("bad id");
+    const image = await listings.getSharePhotoBytes(id);
+    if (!String(image.mimeType || "").startsWith("image/")) {
+      return reply.code(415).send("not an image");
+    }
+    reply.header("Content-Type", image.mimeType);
+    reply.header("Cache-Control", "private, no-store");
+    return reply.send(image.buffer);
   });
 
   app.post("/api/narratives", async (req) => {

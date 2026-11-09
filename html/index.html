@@ -2657,6 +2657,7 @@
 
         // sold always sinks to the very bottom, regardless of sort mode
         const soldRank = x => isSold(x) ? 1 : 0;
+        const activityTimestamp = x => Math.max(Number(x.lastUpdated) || 0, Number(x.dateCreated) || 0);
 
         if (!isTodayReviewMode && sort === "termurah") {
           data.sort((a, b) => {
@@ -2689,17 +2690,15 @@
         } 
         else if (!isTodayReviewMode) {
           data.sort(function(a, b) {
+            const activityDiff = activityTimestamp(b) - activityTimestamp(a);
+            if (activityDiff !== 0) return activityDiff;
+
             const soldDiff = soldRank(a) - soldRank(b);
             if (soldDiff !== 0) return soldDiff;
 
             const rankDiff = hadapMissRank(a) - hadapMissRank(b);
             if (rankDiff !== 0) return rankDiff;
 
-            const dateA = convertBulanTahun(a.bulanTahun);
-            const dateB = convertBulanTahun(b.bulanTahun);
-            if (dateB - dateA !== 0) return dateB - dateA;
-
-            // same month → sort by Drive file creation date (newer first)
             return (Number(b.dateCreated) || 0) - (Number(a.dateCreated) || 0);
           });
         }
@@ -2895,21 +2894,18 @@
       try {
         const shareUrl = getShareUrl(fileId);
 
-        // Fetch the real property photo (not a screenshot of the card UI)
+        // Fetch the full-resolution property photo (not the card thumbnail)
         // and the narrative text in parallel. This also matters for iOS:
         // Safari only allows navigator.share() while the tap's "user
         // activation" is still active, and a slow rendering step (this used
         // to be an html2canvas screenshot of the whole card) can eat that
         // window and make Safari silently refuse the share — a plain image
         // fetch is far faster.
-        const cardEl = document.getElementById("card-" + fileId);
-        const imgEl = cardEl ? cardEl.querySelector("img[data-proxy-src]") : null;
-
-        const imagePromise = imgEl
-          ? fetch(imgEl.dataset.proxySrc)
-              .then(function(res) { return res.ok ? res.blob() : null; })
-              .catch(function() { return null; })
-          : Promise.resolve(null);
+        const imagePromise = fetch("/api/listing-share-image/" + encodeURIComponent(fileId), {
+          credentials: "same-origin"
+        })
+          .then(function(res) { return res.ok ? res.blob() : null; })
+          .catch(function() { return null; });
 
         const narrativePromise = hepiApi("/api/narrative/" + encodeURIComponent(fileId))
           .then(function(res) {
@@ -2921,7 +2917,11 @@
         const results = await Promise.all([imagePromise, narrativePromise]);
         const blob = results[0];
         const narasi = results[1];
-        const imageFile = blob ? new File([blob], "hepi-properti.jpg", { type: blob.type || "image/jpeg" }) : null;
+        const imageMime = blob && blob.type ? blob.type : "image/jpeg";
+        const imageExtension = /png/i.test(imageMime) ? "png"
+          : /webp/i.test(imageMime) ? "webp"
+            : /heic|heif/i.test(imageMime) ? "heic" : "jpg";
+        const imageFile = blob ? new File([blob], "hepi-properti." + imageExtension, { type: imageMime }) : null;
 
         // No link in the shared text — Instagram (the main reason for
         // this) doesn't even accept a "text" field on a native share at
