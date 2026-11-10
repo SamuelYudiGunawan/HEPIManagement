@@ -1823,9 +1823,11 @@
 
     function isOwnerAgent(item) {
       if (hepiAuth.isAdmin()) return true;
-      const owner = normalizeText(item && item.agen);
+      const owner = normalizeText(item && item.agen).replace(/\s+/g, " ");
       if (!owner) return true;
-      return owner === normalizeText(hepiAuth.getNama());
+      const agentIdentities = [hepiAuth.getNama(), hepiAuth.getAgentCode()]
+        .map(function(value) { return normalizeText(value).replace(/\s+/g, " "); });
+      return agentIdentities.includes(owner);
     }
 
     // Revision requests use a different bypass than SOLD: adminkantor (not
@@ -2283,7 +2285,7 @@
       let soldBtnClass = "soldBtn";
       let soldBtnDisabledAttr = "";
 
-      if (sold && !hepiAuth.isAdmin()) {
+      if (sold && !isOwnerAgent(x)) {
         soldLabel = "SOLD";
         soldBtnClass = "soldBtn sold";
         soldBtnDisabledAttr = "disabled";
@@ -2690,11 +2692,11 @@
         } 
         else if (!isTodayReviewMode) {
           data.sort(function(a, b) {
-            const activityDiff = activityTimestamp(b) - activityTimestamp(a);
-            if (activityDiff !== 0) return activityDiff;
-
             const soldDiff = soldRank(a) - soldRank(b);
             if (soldDiff !== 0) return soldDiff;
+
+            const activityDiff = activityTimestamp(b) - activityTimestamp(a);
+            if (activityDiff !== 0) return activityDiff;
 
             const rankDiff = hadapMissRank(a) - hadapMissRank(b);
             if (rankDiff !== 0) return rankDiff;
