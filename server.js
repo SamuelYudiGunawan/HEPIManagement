@@ -170,6 +170,12 @@ function isHttps(req) {
   return String(process.env.PUBLIC_HTTPS || "").toLowerCase() === "true" || req.protocol === "https";
 }
 
+function maintenanceModeEnabled() {
+  return ["1", "true", "yes", "on"].includes(String(process.env.MAINTENANCE_MODE || "").trim().toLowerCase());
+}
+
+const MAINTENANCE_HTML = "<!doctype html><html lang=\"id\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Sedang Maintenance</title><body style=\"font:16px system-ui,sans-serif;max-width:38rem;margin:15vh auto;padding:0 1.25rem;color:#222\"><h1>Situs sedang maintenance</h1><p>Situs sedang diperbarui. Silakan coba kembali nanti.</p></body></html>";
+
 function trustedProxySetting() {
   const values = String(process.env.TRUST_PROXY_CIDRS || "")
     .split(/[;,\s]+/)
@@ -341,6 +347,30 @@ async function build() {
     // under its own field name — property1..property5, see formListing.js).
     // Original 3–5 MB photos fit without resizing, while one request is capped.
     limits: { fileSize: 20 * 1024 * 1024, files: 8 }
+  });
+
+  app.addHook("onRequest", async (req, reply) => {
+    if (!maintenanceModeEnabled()) return;
+    const pathname = req.url.split("?", 1)[0];
+    if (["/auth/google", "/auth/google/callback", "/auth/logout"].includes(pathname)) return;
+
+    const currentSession = sessionFrom(req);
+    if (currentSession && currentSession.agentCode) {
+      try {
+        await agents.requireAdmin(currentSession.agentCode);
+        return;
+      } catch (e) {
+        // Fail closed if the current account is not an active admin.
+      }
+    } else if (req.method === "GET" && Object.prototype.hasOwnProperty.call(PAGE_FILES, pathname)
+      && !req.query.ssoError && !isWhatsAppBot(req)) {
+      return reply.redirect("/auth/google?returnTo=" + encodeURIComponent(req.url));
+    }
+
+    return reply.code(503)
+      .header("Retry-After", "600")
+      .type("text/html; charset=utf-8")
+      .send(MAINTENANCE_HTML);
   });
 
   await app.register(require("@fastify/static"), {

@@ -111,6 +111,8 @@ The app defaults to Google Sheets until `ACTIVITY_STORAGE=mysql` is set. Listing
 4. Compare the imported counts with the two Sheets tabs, then set `ACTIVITY_STORAGE=mysql` and restart the app. If the new database is unavailable or the tables are missing, the app fails closed instead of silently writing to the old Sheets.
 5. Keep the original Sheets tabs read-only as the rollback archive until the database has been used successfully for a while.
 
+For a quiet cutover, set `MAINTENANCE_MODE=true` in the Node.js app environment. Only an account whose current agent-sheet status is exactly `admin` can access the app; other visitors receive a maintenance page. Google sign-in remains available so the admin can log in. Set `MAINTENANCE_MODE=false` after the migration and checks are complete. Confirm your own agent account has status `admin` before enabling this switch.
+
 ## Encrypted Drive Backups
 
 Backups contain only Activity and Attendance records. They are compressed and encrypted before upload. The website uses an RSA public key; keep the matching private key only on a trusted computer.
