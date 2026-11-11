@@ -103,11 +103,13 @@ The app defaults to Google Sheets until `ACTIVITY_STORAGE=mysql` is set. Listing
 3. Keep the current Google Sheets tabs unchanged as the archive. Run the migration script first without flags to validate dates and field lengths. It resolves duplicate date/agent rows by keeping the entry with the latest submitted timestamp; an exact timestamp tie is resolved by keeping the later Sheets row. The older duplicate remains untouched in Google Sheets. In CloudLinux **Setup Node.js App**, use **Run JS Script** and select `migrate:activity` (or run `npm run migrate:activity` from the app environment). This is a dry run; it does not write rows. Fix any other reported source rows before importing:
 
    ```bash
-   node scripts/migrate-activity-to-mysql.js
-   node scripts/migrate-activity-to-mysql.js --import
+   npm run migrate:activity
+   npm run migrate:activity:import
    ```
 
    The import only writes to empty MySQL tables and checks the final row counts. It aborts on invalid source data. Run it during a quiet maintenance window so no new activity or attendance is submitted between the final Sheets read and cutover. The script reads Google Sheets credentials from the Node environment or a protected local `.env`; never put secrets in shell history or send them in chat.
+
+   The migration npm scripts use Node's `--disable-wasm-trap-handler` option because some CloudLinux process limits are smaller than the virtual address space Undici otherwise reserves for WebAssembly. The option is scoped to the migration commands; it does not change the website's normal Node startup.
 4. Compare the imported counts with the two Sheets tabs, then set `ACTIVITY_STORAGE=mysql` and restart the app. If the new database is unavailable or the tables are missing, the app fails closed instead of silently writing to the old Sheets.
 5. Keep the original Sheets tabs read-only as the rollback archive until the database has been used successfully for a while.
 

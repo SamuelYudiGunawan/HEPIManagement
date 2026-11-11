@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "migrate:activity": "node scripts/migrate-activity-to-mysql.js",
+    "migrate:activity": "node --disable-wasm-trap-handler scripts/migrate-activity-to-mysql.js",
+    "migrate:activity:import": "node --disable-wasm-trap-handler scripts/migrate-activity-to-mysql.js --import",
     "dev": "node --watch server.js"
   },
   "engines": {
