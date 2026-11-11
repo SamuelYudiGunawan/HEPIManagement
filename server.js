@@ -473,6 +473,21 @@ async function build() {
     return reply.send(buffer);
   });
 
+  app.get("/api/listing-original-download/:id", async (req, reply) => {
+    credsOrThrow();
+    requireSession(req);
+    const id = req.params.id;
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) return reply.code(400).send("bad id");
+    const { buffer, name, mimeType } = await listings.getListingOriginalPhotoBytes(id);
+    if (!String(mimeType || "").startsWith("image/")) {
+      return reply.code(415).send("not an image");
+    }
+    reply.header("Content-Type", mimeType);
+    reply.header("Content-Disposition", 'attachment; filename="' + String(name || "foto-listing").replace(/["\\\r\n]/g, "") + '"');
+    reply.header("Cache-Control", "private, no-store");
+    return reply.send(buffer);
+  });
+
   app.get("/api/img-thumb/:id", async (req, reply) => {
     const id = req.params.id;
     if (!/^[A-Za-z0-9_-]+$/.test(id)) return reply.code(400).send("bad id");

@@ -420,8 +420,19 @@
     border: 1px solid #ececff !important;
   }
 
-  .actionsRowStatus { grid-template-columns: repeat(2, 1fr); }
-  .actionsRowStatus > :only-child { grid-column: 1 / -1; }
+  .actionsRowStatus { display: flex; }
+  .actionsRowStatus > a,
+  .actionsRowStatus > button { flex: 1; min-width: 0; }
+  .actionsRowStatus > .soldBtn,
+  .actionsRowStatus > .hotBtn { font-size: 18px !important; white-space: nowrap; }
+
+  .downloadOriginalBtn {
+    color: #1565c0 !important;
+    background: #fff !important;
+    border: 1px solid #ececff !important;
+    font-size: 18px !important;
+    white-space: nowrap;
+  }
 
   .shareBtn {
     color: #5f69ff !important;
@@ -2399,6 +2410,13 @@
           onclick="markSold(this.dataset.fid)"
           data-fid="${escapeHtml(x.fileId)}"
         >⛔ ${soldLabel}</button>
+        ${x.thumbnail ? `
+        <a
+          class="downloadOriginalBtn"
+          href="/api/listing-original-download/${encodeURIComponent(x.fileId)}"
+          title="Unduh foto listing dari Google Drive"
+        >⬇️ UNDUH</a>
+        ` : ""}
         ${canManageHot() ? `
         <button
           class="hotBtn"
