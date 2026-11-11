@@ -98,16 +98,16 @@ Until this cron is stable, you can leave GAS import on.
 
 The app defaults to Google Sheets until `ACTIVITY_STORAGE=mysql` is set. Listing metadata, photos, and documents stay in Google Sheets/Drive.
 
-1. In hPanel, create a MySQL database and user. Import [`database/activity-schema.sql`](database/activity-schema.sql) through phpMyAdmin. The runtime app only needs `SELECT`, `INSERT`, and `UPDATE` on these two tables; schema setup is done separately.
+1. In hPanel, create a MySQL database and user. Import [`database/activity-schema.sql`](database/activity-schema.sql) through phpMyAdmin. If you already created the tables from an earlier version of the schema, run [`database/activity-schema-upgrade-signed-counts.sql`](database/activity-schema-upgrade-signed-counts.sql) before importing; this allows historical negative activity corrections such as `-1` to be stored. The runtime app only needs `SELECT`, `INSERT`, and `UPDATE` on these two tables; schema setup is done separately.
 2. Set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, `MYSQL_CONNECTION_LIMIT=5`, and `MYSQL_SSL` in the Node app environment. Keep the database limited to local hosting access unless remote access is required for a controlled recovery.
-3. Keep the current Google Sheets tabs unchanged. Run the migration script first without flags to validate dates, field lengths, and duplicate date/agent pairs. In CloudLinux **Setup Node.js App**, use **Run JS Script** and select `migrate:activity` (or run `npm run migrate:activity` from the app environment). This is a dry run; it does not write rows. Fix any reported source rows before importing:
+3. Keep the current Google Sheets tabs unchanged as the archive. Run the migration script first without flags to validate dates and field lengths. It resolves duplicate date/agent rows by keeping the entry with the latest submitted timestamp; an exact timestamp tie is resolved by keeping the later Sheets row. The older duplicate remains untouched in Google Sheets. In CloudLinux **Setup Node.js App**, use **Run JS Script** and select `migrate:activity` (or run `npm run migrate:activity` from the app environment). This is a dry run; it does not write rows. Fix any other reported source rows before importing:
 
    ```bash
    node scripts/migrate-activity-to-mysql.js
    node scripts/migrate-activity-to-mysql.js --import
    ```
 
-   The import only writes to empty MySQL tables and checks the final row counts. It aborts on duplicates or invalid source data. Run it during a quiet maintenance window so no new activity or attendance is submitted between the final Sheets read and cutover. The script reads Google Sheets credentials from the Node environment or a protected local `.env`; never put secrets in shell history or send them in chat.
+   The import only writes to empty MySQL tables and checks the final row counts. It aborts on invalid source data. Run it during a quiet maintenance window so no new activity or attendance is submitted between the final Sheets read and cutover. The script reads Google Sheets credentials from the Node environment or a protected local `.env`; never put secrets in shell history or send them in chat.
 4. Compare the imported counts with the two Sheets tabs, then set `ACTIVITY_STORAGE=mysql` and restart the app. If the new database is unavailable or the tables are missing, the app fails closed instead of silently writing to the old Sheets.
 5. Keep the original Sheets tabs read-only as the rollback archive until the database has been used successfully for a while.
 
