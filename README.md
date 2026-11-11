@@ -52,7 +52,7 @@ On the host run `npm install` after upload. Put secrets in hPanel env vars, not 
 
 ## Deploy on Niagahoster Bisnis
 
-1. hPanel → **Setup Node.js App** (Node 18 or 20).
+1. cPanel → **Setup Node.js App** (Node 20 or newer; Fastify 5 requires Node.js 20+).
 2. Upload `hepi-website.zip` or set application root to this `website` folder. Start command: `npm start` or `node server.js`.
 3. Set env vars in the Node app dashboard. **Do not paste the service-account JSON there** — CloudLinux writes `export ...` into a bash wrapper and the private key newlines make Node fail to start (503). Upload `service-account.json` next to `server.js` (File Manager, permissions `600`) and only set:
 
@@ -100,7 +100,7 @@ The app defaults to Google Sheets until `ACTIVITY_STORAGE=mysql` is set. Listing
 
 1. In hPanel, create a MySQL database and user. Import [`database/activity-schema.sql`](database/activity-schema.sql) through phpMyAdmin. The runtime app only needs `SELECT`, `INSERT`, and `UPDATE` on these two tables; schema setup is done separately.
 2. Set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, `MYSQL_CONNECTION_LIMIT=5`, and `MYSQL_SSL` in the Node app environment. Keep the database limited to local hosting access unless remote access is required for a controlled recovery.
-3. Keep the current Google Sheets tabs unchanged. Run the migration script first without flags to validate dates, field lengths, and duplicate date/agent pairs. Fix any reported source rows before importing:
+3. Keep the current Google Sheets tabs unchanged. Run the migration script first without flags to validate dates, field lengths, and duplicate date/agent pairs. In CloudLinux **Setup Node.js App**, use **Run JS Script** and select `migrate:activity` (or run `npm run migrate:activity` from the app environment). This is a dry run; it does not write rows. Fix any reported source rows before importing:
 
    ```bash
    node scripts/migrate-activity-to-mysql.js

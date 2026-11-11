@@ -6,10 +6,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "migrate:activity": "node scripts/migrate-activity-to-mysql.js",
     "dev": "node --watch server.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@fastify/multipart": "^9.0.3",
