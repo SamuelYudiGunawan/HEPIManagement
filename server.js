@@ -10,6 +10,8 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const Fastify = require("fastify");
+const rateLimit = require("@fastify/rate-limit");
+const { normalizeIP } = rateLimit;
 const { hasCredentials } = require("./lib/google");
 const { ROOT_FOLDER_ID } = require("./lib/config");
 const drive = require("./lib/drive");
@@ -17,6 +19,8 @@ const agents = require("./lib/agents");
 const listings = require("./lib/listings");
 const activity = require("./lib/activity");
 const attendance = require("./lib/attendance");
+const activityDb = require("./lib/activityDb");
+const activityBackup = require("./lib/activityBackup");
 const activityReminder = require("./lib/activityReminder");
 const importer = require("./lib/import");
 const formListing = require("./lib/formListing");
@@ -29,7 +33,7 @@ const session = require("./lib/session");
 const googleSignIn = require("./lib/googleSignIn");
 const STATIC_DIR = path.join(__dirname, "static");
 const HTML_DIR = path.join(__dirname, "html");
-const BODY_LIMIT = 64 * 1024 * 1024;
+const BODY_LIMIT = 40 * 1024 * 1024;
 
 const PAGE_FILES = {
   "/": "index.html",
@@ -163,7 +167,37 @@ function timingSafeStringEqual(a, b) {
 }
 
 function isHttps(req) {
-  return req.protocol === "https";
+  return String(process.env.PUBLIC_HTTPS || "").toLowerCase() === "true" || req.protocol === "https";
+}
+
+function trustedProxySetting() {
+  const values = String(process.env.TRUST_PROXY_CIDRS || "")
+    .split(/[;,\s]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return values.length ? values : false;
+}
+
+function rateLimitKey(req) {
+  try {
+    const s = sessionFrom(req);
+    const code = String(s && s.agentCode || "").toUpperCase().trim();
+    if (code) return "agent:" + code;
+  } catch (e) {
+    // Invalid cookies fall back to an IP bucket; the route will still reject them.
+  }
+  return "ip:" + normalizeIP(req.ip, 64);
+}
+
+function sameOriginRequest(req) {
+  const origin = String(req.headers.origin || "");
+  const configured = String(process.env.PUBLIC_ORIGIN || "").trim();
+  if (!origin || !configured) return false;
+  try {
+    return new URL(origin).origin === new URL(configured).origin;
+  } catch (e) {
+    return false;
+  }
 }
 
 function setCookie(reply, req, name, value, maxAgeSeconds) {
@@ -282,13 +316,31 @@ async function build() {
   const app = Fastify({
     logger: true,
     bodyLimit: BODY_LIMIT,
-    trustProxy: true
+    trustProxy: trustedProxySetting()
+  });
+
+  if (activityDb.enabled()) await activityDb.checkSchema();
+
+  await app.register(rateLimit, {
+    global: true,
+    max: 180,
+    timeWindow: "1 minute",
+    cache: 10000,
+    ipv6Subnet: 64,
+    keyGenerator: rateLimitKey,
+    allowList: (req) => !req.url.startsWith("/api/") && !req.url.startsWith("/auth/"),
+    errorResponseBuilder: () => ({
+      statusCode: 429,
+      error: "Too Many Requests",
+      message: "Terlalu banyak permintaan. Coba lagi sebentar."
+    })
   });
 
   await app.register(require("@fastify/multipart"), {
     // Form Listing submit sends 1 form file + up to 5 property photos (each
     // under its own field name — property1..property5, see formListing.js).
-    limits: { fileSize: BODY_LIMIT, files: 8 }
+    // Original 3–5 MB photos fit without resizing, while one request is capped.
+    limits: { fileSize: 20 * 1024 * 1024, files: 8 }
   });
 
   await app.register(require("@fastify/static"), {
@@ -301,7 +353,16 @@ async function build() {
   app.setErrorHandler((err, req, reply) => {
     const status = err.statusCode || 500;
     req.log.error(err);
-    reply.status(status).send({ error: err.message || "Server error" });
+    const message = status >= 500 ? "Terjadi kesalahan pada server." : (err.message || "Permintaan gagal.");
+    reply.status(status).send({ error: message });
+  });
+
+  app.addHook("onRequest", async (req, reply) => {
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return;
+    if (!req.url.startsWith("/api/") || req.url.startsWith("/api/cron/")) return;
+    if (!sameOriginRequest(req)) {
+      return reply.code(403).send({ error: "Permintaan lintas situs ditolak." });
+    }
   });
 
   // Some hosts front this app with LiteSpeed's page cache, which can cache a
@@ -314,6 +375,18 @@ async function build() {
     if (!req.url.startsWith("/assets/")) {
       reply.header("X-LiteSpeed-Cache-Control", "no-cache");
     }
+    const pathname = req.url.split("?", 1)[0];
+    const isPrivateDynamic = pathname.startsWith("/api/")
+      && !/^\/api\/img-thumb\/[A-Za-z0-9_-]+$/.test(pathname);
+    if ((isPrivateDynamic || pathname.startsWith("/auth/") || Object.prototype.hasOwnProperty.call(PAGE_FILES, pathname))
+      && !reply.getHeader("cache-control")) {
+      reply.header("Cache-Control", "private, no-store");
+    }
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("X-Frame-Options", "DENY");
+    reply.header("Referrer-Policy", "strict-origin-when-cross-origin");
+    reply.header("Permissions-Policy", "geolocation=(self)");
+    if (isHttps(req)) reply.header("Strict-Transport-Security", "max-age=31536000");
     return payload;
   });
 
@@ -344,7 +417,9 @@ async function build() {
     sheets: !!process.env.GOOGLE_SHEETS_ID
   }));
 
-  app.get("/auth/google", async (req, reply) => {
+  app.get("/auth/google", {
+    config: { rateLimit: { max: 120, timeWindow: "10 minutes", groupId: "google-login" } }
+  }, async (req, reply) => {
     if (!googleSignIn.hasCredentials()) {
       const err = new Error("Google sign-in belum dikonfigurasi.");
       err.statusCode = 503;
@@ -356,7 +431,9 @@ async function build() {
     return reply.redirect(googleSignIn.getAuthUrl(state));
   });
 
-  app.get("/auth/google/callback", async (req, reply) => {
+  app.get("/auth/google/callback", {
+    config: { rateLimit: { max: 240, timeWindow: "10 minutes", groupId: "google-callback" } }
+  }, async (req, reply) => {
     const cookies = session.parseCookies(req.headers.cookie);
     const stored = String(cookies.hepi_oauth_state || "");
     clearCookie(reply, req, "hepi_oauth_state");
@@ -415,13 +492,17 @@ async function build() {
     };
   });
 
-  app.get("/api/attendance/status", async (req) => {
+  app.get("/api/attendance/status", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute", groupId: "attendance-status" } }
+  }, async (req) => {
     credsOrThrow();
     const { agentCode } = requireSession(req);
     return attendance.getStatus(agentCode, req.ip);
   });
 
-  app.post("/api/attendance/submit", async (req) => {
+  app.post("/api/attendance/submit", {
+    config: { rateLimit: { max: 5, timeWindow: "15 minutes", groupId: "attendance-submit" } }
+  }, async (req) => {
     credsOrThrow();
     const { agentCode } = requireSession(req);
     return attendance.submit(agentCode, req.ip, req.body || {});
@@ -529,7 +610,9 @@ async function build() {
     return listings.getActiveAgentsForListing(agentCode);
   });
 
-  app.post("/api/input-listing", async (req) => {
+  app.post("/api/input-listing", {
+    config: { rateLimit: { max: 10, timeWindow: "15 minutes", groupId: "listing-upload" } }
+  }, async (req) => {
     credsOrThrow();
     const { agentCode } = requireSession(req);
     const isMulti = typeof req.isMultipart === "function" && req.isMultipart();
@@ -541,7 +624,9 @@ async function build() {
     return listings.submitOneListing(agentCode, body, {});
   });
 
-  app.post("/api/activity", async (req) => {
+  app.post("/api/activity", {
+    config: { rateLimit: { max: 5, timeWindow: "15 minutes", groupId: "activity-submit" } }
+  }, async (req) => {
     credsOrThrow();
     const body = req.body || {};
     const { agentCode } = requireSession(req);
@@ -567,14 +652,18 @@ async function build() {
     return activity.getAgentMonthHistory(agentCode);
   });
 
-  app.post("/api/closings", async (req) => {
+  app.post("/api/closings", {
+    config: { rateLimit: { max: 20, timeWindow: "15 minutes", groupId: "closing-submit" } }
+  }, async (req) => {
     credsOrThrow();
     const body = req.body || {};
     const { agentCode } = requireSession(req);
     return activity.submitClosings(agentCode, body);
   });
 
-  app.post("/api/form-listing/submit", async (req) => {
+  app.post("/api/form-listing/submit", {
+    config: { rateLimit: { max: 10, timeWindow: "15 minutes", groupId: "form-listing-upload" } }
+  }, async (req) => {
     credsOrThrow();
     const { agentCode } = requireSession(req);
     const { fields, files } = await readMultipart(req);
@@ -623,7 +712,9 @@ async function build() {
     }
   }
 
-  app.post("/api/revision/submit", async (req) => {
+  app.post("/api/revision/submit", {
+    config: { rateLimit: { max: 10, timeWindow: "15 minutes", groupId: "revision-upload" } }
+  }, async (req) => {
     credsOrThrow();
     const { agentCode } = requireSession(req);
     const { fields, files } = await readMultipart(req);
@@ -784,8 +875,10 @@ async function build() {
     return notifications.clear(agentCode, body.all ? "" : body.id);
   });
 
-  app.get("/api/cron/import", async (req, reply) => {
-    const token = String(req.query.token || req.headers["x-cron-token"] || "");
+  app.get("/api/cron/import", {
+    config: { rateLimit: { max: 5, timeWindow: "10 minutes", groupId: "cron-import" } }
+  }, async (req, reply) => {
+    const token = String(req.headers["x-cron-token"] || req.query.token || "");
     const secret = String(process.env.CRON_SECRET || "");
     if (!secret || !timingSafeStringEqual(token, secret)) {
       return reply.status(401).send({ error: "Unauthorized" });
@@ -803,6 +896,24 @@ async function build() {
       ? await importer.runImport(true, req.log)
       : await importer.handleCron(req.log);
     return Object.assign({}, importResult, { activityReminder: reminderResult });
+  });
+
+  app.post("/api/cron/activity-backup", {
+    config: { rateLimit: { max: 2, timeWindow: "1 hour", groupId: "activity-backup" } }
+  }, async (req, reply) => {
+    const token = String(req.headers["x-cron-token"] || "");
+    const secret = String(process.env.CRON_SECRET || "");
+    if (!secret || !timingSafeStringEqual(token, secret)) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+    if (!hasCredentials()) {
+      return reply.status(503).send({ error: "Google Drive backup is not configured." });
+    }
+    if (!activityDb.enabled()) {
+      return reply.status(409).send({ error: "Activity storage is not using MySQL." });
+    }
+    const result = await activityBackup.createDriveBackup();
+    return { ok: true, backup: result };
   });
 
   return app;

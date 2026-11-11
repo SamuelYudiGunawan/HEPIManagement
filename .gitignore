@@ -1,6 +1,9 @@
 node_modules/
 .env
 service-account.json
+*activity-backup-private.pem
+*.enc.json
+decrypted-backup.json
 data/*.json
 data/*.lock
 .DS_Store
