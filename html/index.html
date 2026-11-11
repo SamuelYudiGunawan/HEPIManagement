@@ -2915,8 +2915,8 @@
       try {
         const shareUrl = getShareUrl(fileId);
 
-        // Fetch the designed 4:5 photo referenced by the sheet's thumbnail
-        // column and the narrative text in parallel. This also matters for iOS:
+        // Fetch the raw photo bytes for the active Drive ID in Data Properti
+        // and the narrative text in parallel. This also matters for iOS:
         // Safari only allows navigator.share() while the tap's "user
         // activation" is still active, and a slow rendering step (this used
         // to be an html2canvas screenshot of the whole card) can eat that
@@ -2926,7 +2926,7 @@
           credentials: "same-origin"
         })
           .then(function(res) {
-            if (!res.ok) throw new Error("Foto thumbnail tidak tersedia atau bukan rasio 4:5.");
+            if (!res.ok) throw new Error("Foto aktif tidak ditemukan atau tidak bisa diunduh.");
             return res.blob();
           });
 
@@ -2943,7 +2943,12 @@
         const imageMime = blob && blob.type ? blob.type : "image/jpeg";
         const imageExtension = /png/i.test(imageMime) ? "png"
           : /webp/i.test(imageMime) ? "webp"
-            : /heic|heif/i.test(imageMime) ? "heic" : "jpg";
+            : /heic/i.test(imageMime) ? "heic"
+              : /heif/i.test(imageMime) ? "heif"
+                : /avif/i.test(imageMime) ? "avif"
+                  : /gif/i.test(imageMime) ? "gif"
+                    : /bmp/i.test(imageMime) ? "bmp"
+                      : /tiff?/i.test(imageMime) ? "tif" : "jpg";
         const imageFile = blob ? new File([blob], "hepi-properti." + imageExtension, { type: imageMime }) : null;
 
         // No link in the shared text — Instagram (the main reason for
