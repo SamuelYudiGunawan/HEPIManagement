@@ -72,8 +72,6 @@ function findDuplicateKeys(rows, dateIndex, codeIndex, label, errors) {
 }
 
 async function readSource() {
-  await sheets.ensureDailyActivitySheet();
-  await sheets.ensureMeetingAttendanceSheet();
   const [rawActivity, rawAttendance] = await Promise.all([
     sheets.getValues(SHEET_NAMES.DAILY_ACTIVITY, "A1:O"),
     sheets.getValues(SHEET_NAMES.MEETING_ATTENDANCE, "A1:H")
