@@ -655,7 +655,7 @@ async function build() {
   });
 
   app.post("/api/activity", {
-    config: { rateLimit: { max: 5, timeWindow: "15 minutes", groupId: "activity-submit" } }
+    config: { rateLimit: { max: 50, timeWindow: "15 minutes", groupId: "activity-submit" } }
   }, async (req) => {
     credsOrThrow();
     const body = req.body || {};
