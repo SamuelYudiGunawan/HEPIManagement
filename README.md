@@ -4,6 +4,8 @@
 
 Node.js + Fastify. Listing metadata and listing files continue to use **Google Sheets** and **Google Drive**. Daily Activity and Meeting Attendance can use MySQL after the full history is imported. Search, Input Listing, scores, history, and closing work on your own domain. The site is a PWA so you can wrap it as an Android `.apk` later.
 
+The `thumbnail` cell in `Data Properti` points to the edited/designed photo used for the listing. The page may request a resized preview, but Share and Download read the original bytes of that same Drive file ID. The untouched uploaded source is stored separately with a `- Original` filename; it does not replace the edited photo in the sheet.
+
 Keep the GAS web app running until this site is verified, then point agents to the new URL.
 
 ## Setup

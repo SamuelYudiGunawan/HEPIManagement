@@ -589,7 +589,7 @@ async function build() {
     requireSession(req);
     const id = req.params.id;
     if (!/^[A-Za-z0-9_-]+$/.test(id)) return reply.code(400).send("bad id");
-    const { buffer, name, mimeType } = await listings.getListingOriginalPhotoBytes(id);
+    const { buffer, name, mimeType } = await listings.getActiveListingPhotoBytes(id);
     if (!String(mimeType || "").startsWith("image/")) {
       return reply.code(415).send("not an image");
     }

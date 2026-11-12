@@ -74,8 +74,6 @@
   };
   const TIPE_LIST = ["Gudang", "Tanah", "Rumah", "Ruko", "Kost", "Apartemen", "Ruang Usaha"];
   const HADAP_LIST = ["Utara", "Selatan", "Timur", "Barat", "Tenggara", "Timur Laut", "Barat Laut", "Barat Daya"];
-  const THUMB_W = 800;
-  const THUMB_H = 1000;
   let AGENT_LIST = [];
 
   function $(id) { return document.getElementById(id); }
@@ -421,39 +419,7 @@
     return loadViaImg(file);
   }
 
-  function cropToRatioDataUrl(source, outW, outH, mime, quality) {
-    const w = source.width;
-    const h = source.height;
-    if (!w || !h) throw new Error("Foto tidak valid.");
-    const targetRatio = outW / outH;
-    const srcRatio = w / h;
-    let sx, sy, sw, sh;
-    if (srcRatio > targetRatio) {
-      sh = h;
-      sw = h * targetRatio;
-      sx = (w - sw) / 2;
-      sy = 0;
-    } else {
-      sw = w;
-      sh = w / targetRatio;
-      sx = 0;
-      sy = (h - sh) / 2;
-    }
-    let width = outW;
-    let height = outH;
-    if (width > sw) {
-      width = Math.max(1, Math.round(sw));
-      height = Math.max(1, Math.round(width / targetRatio));
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, width, height);
-    return canvas.toDataURL(mime, quality);
-  }
-
-  function originalFileType_(file) {
+  function imageFileType_(file) {
     const mime = String(file && file.type || "").toLowerCase().split(";")[0];
     const mimeToExt = {
       "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
@@ -471,7 +437,7 @@
     };
     const normalizedMime = mimeToExt[mime] ? (mime === "image/jpg" ? "image/jpeg" : mime === "image/tif" ? "image/tiff" : mime) : (extToMime[normalizedExt] || "");
     if (!normalizedExt || !/^image\/(jpeg|png|webp|gif|heic|heif|avif|bmp|tiff?)$/i.test(normalizedMime)) {
-      throw new Error("Format foto original tidak didukung. Gunakan JPG, PNG, WebP, HEIC, atau AVIF.");
+      throw new Error("Format foto tidak didukung. Gunakan JPG, PNG, WebP, HEIC, atau AVIF.");
     }
     return { mime: normalizedMime, ext: normalizedExt };
   }
@@ -493,8 +459,11 @@
     }
     previewWrap.textContent = "Memproses...";
     previewWrap.classList.remove("hasImg");
-    if (kind === "thumb") card._thumbDataUrl = "";
-    else {
+    if (kind === "thumb") {
+      card._thumbFile = null;
+      card._thumbMime = "";
+      card._thumbExt = "";
+    } else {
       card._origFile = null;
       card._origMime = "";
       card._origExt = "";
@@ -504,26 +473,22 @@
 
     loadImageForCrop(file)
       .then(function(source) {
-        let previewSrc;
+        const imageType = imageFileType_(file);
         if (kind === "thumb") {
-          const dataUrl = cropToRatioDataUrl(source, THUMB_W, THUMB_H, "image/jpeg", 0.85);
-          card._thumbDataUrl = dataUrl;
-          card._thumbMime = "image/jpeg";
-          previewSrc = dataUrl;
+          card._thumbFile = file;
+          card._thumbMime = imageType.mime;
+          card._thumbExt = imageType.ext;
         } else {
-          const originalType = originalFileType_(file);
           card._origFile = file;
-          card._origMime = originalType.mime;
-          card._origExt = originalType.ext;
-          previewSrc = URL.createObjectURL(file);
+          card._origMime = imageType.mime;
+          card._origExt = imageType.ext;
         }
+        const previewSrc = URL.createObjectURL(file);
         previewWrap.innerHTML = "";
         const img = document.createElement("img");
         img.alt = kind === "thumb" ? "Thumbnail" : "Original";
-        if (kind !== "thumb") {
-          img.onload = function() { URL.revokeObjectURL(previewSrc); };
-          img.onerror = function() { URL.revokeObjectURL(previewSrc); };
-        }
+        img.onload = function() { URL.revokeObjectURL(previewSrc); };
+        img.onerror = function() { URL.revokeObjectURL(previewSrc); };
         img.src = previewSrc;
         previewWrap.appendChild(img);
         previewWrap.classList.add("hasImg");
@@ -767,7 +732,7 @@
     if (!daerah) throw new Error("Listing " + n + ": isi nama daerah.");
     if (!harga) throw new Error("Listing " + n + ": isi harga.");
     if (!kode) throw new Error("Listing " + n + ": pilih agen.");
-    if (!card._thumbDataUrl) throw new Error("Listing " + n + ": upload thumbnail.");
+    if (!card._thumbFile) throw new Error("Listing " + n + ": upload thumbnail.");
     if (!card._origFile) throw new Error("Listing " + n + ": upload foto original.");
 
     const useOwn = isOwnNarrative(card);
@@ -804,34 +769,24 @@
       ownNarrative: ownNarrative,
       autoNarrative: autoNarrative,
       bulanTahun: $("listingMonth").value,
-      thumbBase64: card._thumbDataUrl,
+      thumbFile: card._thumbFile,
       thumbMime: card._thumbMime || "image/jpeg",
+      thumbExt: card._thumbExt || "jpg",
       origFile: card._origFile,
       origMime: card._origMime || "image/jpeg",
       origExt: card._origExt || "jpg"
     };
   }
 
-  function dataUrlToBlob(dataUrl, mime) {
-    var s = String(dataUrl || "");
-    var m = s.match(/^data:([^;]+);base64,(.+)$/);
-    var b64 = m ? m[2] : s.replace(/^data:[^;]+;base64,/, "");
-    var type = m ? m[1] : (mime || "image/jpeg");
-    var bin = atob(b64);
-    var arr = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    return new Blob([arr], { type: type });
-  }
-
   function runSubmit(payload) {
     var fd = new FormData();
     Object.keys(payload).forEach(function(k) {
-      if (k === "thumbBase64" || k === "origFile") return;
+      if (k === "thumbFile" || k === "origFile") return;
       var v = payload[k];
       if (v === true || v === false) fd.append(k, v ? "true" : "false");
       else if (v != null) fd.append(k, String(v));
     });
-    if (payload.thumbBase64) fd.append("thumb", dataUrlToBlob(payload.thumbBase64, payload.thumbMime), "thumb.png");
+    if (payload.thumbFile) fd.append("thumb", payload.thumbFile, payload.thumbFile.name || "thumb." + (payload.thumbExt || "jpg"));
     if (payload.origFile) fd.append("orig", payload.origFile, payload.origFile.name || "orig." + (payload.origExt || "jpg"));
     return hepiApi("/api/input-listing", { formData: fd });
   }
